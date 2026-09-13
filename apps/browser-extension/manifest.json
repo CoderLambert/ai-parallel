@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Parallel",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Compare multiple AI web chats side by side in one live workspace.",
   "minimum_chrome_version": "120",
   "permissions": [
@@ -12,6 +12,7 @@
   ],
   "host_permissions": [
     "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
     "https://chat.deepseek.com/*",
     "https://chatglm.cn/*",
     "https://chat.qwen.ai/*",
@@ -42,6 +43,7 @@
     {
       "matches": [
         "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
         "https://chat.deepseek.com/*",
         "https://chatglm.cn/*",
         "https://chat.qwen.ai/*",
