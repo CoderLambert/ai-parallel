@@ -6,11 +6,13 @@
     return;
   }
 
+  const MESSAGE_CONTEXT = "ai-parallel-workspace";
+  const PARENT_ORIGIN = new URL(chrome.runtime.getURL("/")).origin;
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const PROVIDERS = {
     chatgpt: {
-      hosts: ["chatgpt.com"],
+      hosts: ["chatgpt.com", "chat.openai.com"],
       editorSelectors: [
         "#prompt-textarea",
         "textarea[data-testid='prompt-textarea']",
@@ -65,6 +67,17 @@
     .find(([, provider]) => provider.hosts.includes(location.hostname))?.[0];
   if (!providerId) return;
   const adapter = PROVIDERS[providerId];
+
+  function postParent(payload) {
+    window.parent.postMessage(
+      { ...payload, context: MESSAGE_CONTEXT, providerId },
+      PARENT_ORIGIN
+    );
+  }
+
+  function announceReady() {
+    postParent({ type: "AI_PARALLEL_FRAME_READY", href: location.href });
+  }
 
   function isVisible(element) {
     if (!(element instanceof Element)) return false;
@@ -135,12 +148,15 @@
     element.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
   }
 
-  function editorContainsPrompt(editor, prompt) {
-    const expected = prompt.trim().slice(0, 48);
-    const actual = editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement
+  function editorText(editor) {
+    return editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement
       ? editor.value
       : editor.textContent || "";
-    return Boolean(expected && actual.includes(expected));
+  }
+
+  function editorContainsPrompt(editor, prompt) {
+    const expected = prompt.trim().slice(0, 48);
+    return Boolean(expected && editorText(editor).includes(expected));
   }
 
   async function fillEditor(editor, prompt) {
@@ -238,17 +254,35 @@
     return true;
   }
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== "AI_PARALLEL_SEND" || message.providerId !== providerId) return;
-    injectAndSend(String(message.prompt || "").trim())
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }));
-    return true;
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent || event.origin !== PARENT_ORIGIN) return;
+    if (!event.data || event.data.context !== MESSAGE_CONTEXT) return;
+    if (event.data.providerId !== providerId) return;
+
+    if (event.data.type === "AI_PARALLEL_PING") {
+      announceReady();
+      return;
+    }
+
+    if (event.data.type !== "AI_PARALLEL_SEND") return;
+    const requestId = String(event.data.requestId || "");
+    const prompt = String(event.data.prompt || "").trim();
+    if (!requestId) return;
+
+    if (!prompt) {
+      postParent({ type: "AI_PARALLEL_SEND_RESULT", requestId, ok: false, error: "Prompt 不能为空" });
+      return;
+    }
+
+    injectAndSend(prompt)
+      .then(() => postParent({ type: "AI_PARALLEL_SEND_RESULT", requestId, ok: true }))
+      .catch((error) => postParent({
+        type: "AI_PARALLEL_SEND_RESULT",
+        requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error)
+      }));
   });
 
-  chrome.runtime.sendMessage({
-    type: "FRAME_READY",
-    providerId,
-    href: location.href
-  }).catch(() => {});
+  announceReady();
 })();
