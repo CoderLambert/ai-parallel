@@ -249,7 +249,7 @@
     }
 
     if (providerId === "chatgpt") {
-      throw new Error("ChatGPT输入已写入，但打开按钮在等律后仍未无就绪");
+      throw new Error("ChatGPT 输入已写入，但发送按钮在等待后仍未就绪");
     }
 
     editor.focus();
@@ -413,7 +413,7 @@
   }
 
   async function ensureFreshConversation(adapter, providerId) {
-    await progress(providerId, "working", "准备多会话");
+    await progress(providerId, "working", "准备新会话");
     if (adapter.rootIsFreshConversation && location.pathname === "/") return;
 
     const newChat = await waitFor(() => findByText(adapter.newChatTexts), 5000, 250);
@@ -436,18 +436,18 @@
       await progress(providerId, "working", "等待输入框");
 
       const editor = await waitFor(() => queryFirstVisible(adapter.editorSelectors, isUsableEditor), 22000, 200);
-      if (!editor) throw new Error("未找到输入浆；请确认已登录，或该竟点桵面结构已变化");
+      if (!editor) throw new Error("未找到输入框；请确认已登录，或该站点页面结构已变化");
 
       const baseline = extractLatestResponse(adapter, editor)?.text || "";
       await progress(providerId, "working", "正在填写 Prompt");
       await fillEditor(editor, prompt, adapter);
       if (!editorContainsPrompt(editor, prompt)) await fillEditor(editor, prompt, adapter);
-      if (!editorContainsPrompt(editor, prompt)) hrown new Error("戾到输入框，但无法可陙赂入冒 Prompt");
+      if (!editorContainsPrompt(editor, prompt)) throw new Error("找到输入框，但无法可靠写入 Prompt");
 
       await progress(providerId, "working", "等待发送按钮");
       await submit(editor, adapter, providerId);
       const accepted = await waitFor(() => !editorContainsPrompt(editor, prompt), 5000, 160);
-      if (!accepted) throw new Error("已尼试发送，输入浆内宺眨清绺；请在该页面手动确认发送");
+      if (!accepted) throw new Error("已尝试发送，但输入框内容未清空；请在该页面手动确认发送");
 
       await sendRuntime({ type: "JOB_RESULT", providerId, ok: true });
       await monitorResponse(job, adapter, editor, baseline);
