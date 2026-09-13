@@ -1,0 +1,15 @@
+node_modules/
+.pnpm-store/
+dist/
+build/
+coverage/
+.DS_Store
+*.log
+
+# IDE/editor local state
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# local scratch/artifacts
+*.zip
