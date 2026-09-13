@@ -1,0 +1,181 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0b0c0f;
+  color: #f4f4f5;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  width: 560px;
+  min-height: 620px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(79, 70, 229, .14), transparent 34%),
+    #0b0c0f;
+}
+
+button, textarea { font: inherit; }
+button { cursor: pointer; }
+
+.app { padding: 20px; }
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.eyebrow {
+  color: #8b8d98;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .16em;
+  margin-bottom: 5px;
+}
+h1 { margin: 0; font-size: 22px; letter-spacing: -.03em; }
+
+.icon-button, .text-button {
+  border: 0;
+  background: transparent;
+  color: #a1a1aa;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+.icon-button:hover, .text-button:hover { background: #18181b; color: #fff; }
+.text-button { font-size: 12px; }
+
+.provider-panel, .status-panel {
+  border: 1px solid #24262d;
+  background: rgba(18, 19, 24, .76);
+  border-radius: 14px;
+  padding: 12px;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+  color: #d4d4d8;
+  font-size: 12px;
+  font-weight: 650;
+}
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.provider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 1px solid #272932;
+  border-radius: 10px;
+  background: #111217;
+  color: #d4d4d8;
+  user-select: none;
+}
+.provider:hover { border-color: #3f414d; }
+.provider[data-checked="true"] {
+  border-color: #615fff;
+  background: rgba(79, 70, 229, .12);
+  color: #fff;
+}
+.provider input { position: absolute; opacity: 0; pointer-events: none; }
+.provider .mark {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #454751;
+  border-radius: 5px;
+  font-size: 11px;
+}
+.provider[data-checked="true"] .mark { background: #6366f1; border-color: #6366f1; }
+.provider .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+
+.composer { margin: 12px 0; }
+textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 180px;
+  max-height: 360px;
+  outline: none;
+  border: 1px solid #2a2c34;
+  border-radius: 14px;
+  background: #111217;
+  color: #fafafa;
+  padding: 14px 15px;
+  line-height: 1.55;
+}
+textarea:focus { border-color: #5b5ee8; box-shadow: 0 0 0 3px rgba(91, 94, 232, .12); }
+textarea::placeholder { color: #63656f; }
+.composer-meta {
+  display: flex;
+  justify-content: space-between;
+  margin: 7px 2px 0;
+  color: #71717a;
+  font-size: 11px;
+}
+
+.send-button {
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: #f4f4f5;
+  color: #111217;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  font-weight: 750;
+}
+.send-button:hover { background: #fff; }
+.send-button:disabled { cursor: not-allowed; opacity: .45; }
+.count-pill {
+  min-width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  border-radius: 99px;
+  background: #d4d4d8;
+  font-size: 11px;
+}
+
+.error-box {
+  margin: -2px 0 10px;
+  padding: 9px 11px;
+  border: 1px solid #7f1d1d;
+  background: rgba(127, 29, 29, .18);
+  color: #fecaca;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.status-panel { margin-top: 12px; }
+.status-list { display: grid; gap: 6px; }
+.status-list.empty { color: #686a73; font-size: 12px; padding: 4px 0 2px; }
+.status-item {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: #d4d4d8;
+  font-size: 12px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #71717a; }
+.status-item[data-state="sent"] .dot { background: #22c55e; }
+.status-item[data-state="error"] .dot { background: #ef4444; }
+.status-item[data-state="working"] .dot,
+.status-item[data-state="waiting"] .dot,
+.status-item[data-state="opening"] .dot { background: #f59e0b; }
+.status-message { color: #777985; max-width: 225px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+footer { margin-top: 11px; text-align: center; color: #5f616a; font-size: 10px; }
