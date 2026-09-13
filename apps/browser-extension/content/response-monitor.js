@@ -151,8 +151,7 @@
     return map;
   }
 
-  function pickResponse(provider, baseline, prompt) {
-    const candidates = collectCandidates(provider);
+  function pickResponse(provider, baseline, prompt, candidates = collectCandidates(provider)) {
     for (let index = candidates.length - 1; index >= 0; index -= 1) {
       const { node, text } = candidates[index];
       if (baseline.get(node) === text) continue;
@@ -184,6 +183,14 @@
     return null;
   }
 
+  async function providerWasSubmitted(runId, providerId) {
+    const response = await send({ type: "GET_RUN" });
+    const run = response?.ok ? response.run : null;
+    if (!run || run.runId !== runId) return false;
+    const state = run.providers?.[providerId]?.state;
+    return ["sent", "streaming", "completed"].includes(state);
+  }
+
   async function start(job, provider) {
     const baseline = createBaseline(provider);
     const { providerId, runId, prompt } = job;
@@ -192,8 +199,11 @@
     let lastChangedAt = 0;
     let lastSentAt = 0;
     let completed = false;
+    let armed = false;
     let timer = null;
     let busy = false;
+    let lastRunStateCheckAt = 0;
+    let submittedFromRunState = false;
     const startedAt = Date.now();
 
     const complete = async () => {
@@ -209,7 +219,23 @@
       if (completed || busy) return;
       busy = true;
       try {
-        const response = pickResponse(provider, baseline, prompt);
+        const candidates = collectCandidates(provider);
+
+        if (!armed) {
+          const promptVisible = candidates.some(({ text }) => isPromptEcho(text, prompt));
+          if (!submittedFromRunState && Date.now() - lastRunStateCheckAt >= 120) {
+            lastRunStateCheckAt = Date.now();
+            submittedFromRunState = await providerWasSubmitted(runId, providerId);
+          }
+
+          if (!promptVisible && !submittedFromRunState) {
+            for (const candidate of candidates) baseline.set(candidate.node, candidate.text);
+            return;
+          }
+          armed = true;
+        }
+
+        const response = pickResponse(provider, baseline, prompt, candidates);
         if (!response) return;
 
         if (response.text !== latestText) {
