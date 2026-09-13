@@ -1,9 +1,9 @@
 {
   "name": "@ai-parallel/browser-extension",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Manifest V3 workspace for comparing AI web models in parallel.",
   "scripts": {
-    "check": "node --check service-worker.js && node --check popup.js && node --check content/runner.js && node --check workspace/workspace.js"
+    "check": "node --check service-worker.js && node --check popup.js && node --check content/runner.js && node --check content/response-monitor.js && node --check workspace/workspace.js"
   }
 }
