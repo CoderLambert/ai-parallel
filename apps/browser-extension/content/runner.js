@@ -345,8 +345,20 @@
     return Boolean(queryFirstVisible(adapter.generatingSelectors || [], (el) => isVisible(el) && !el.disabled));
   }
 
+  async function waitForSubmissionSignal(adapter, editor, prompt, baselineText, beforeSubmitUrl) {
+    return waitFor(() => {
+      if (!editor.isConnected || !editorContainsPrompt(editor, prompt)) return "editor-cleared";
+      if (location.href !== beforeSubmitUrl) return "navigation";
+      if (isGenerating(adapter)) return "generating";
+      const response = extractLatestResponse(adapter, editor);
+      if (response && response.text !== baselineText) return "response";
+      return null;
+    }, 5000, 160);
+  }
+
   async function monitorResponse(job, adapter, editor, baselineText) {
     const { providerId, runId } = job;
+    const startedAt = Date.now();
     let latestText = "";
     let latestBlocks = [];
     let lastChangedAt = Date.now();
@@ -357,7 +369,21 @@
     const sample = async () => {
       if (finished) return;
       const response = extractLatestResponse(adapter, editor);
-      if (!response || response.text === baselineText) return;
+      if (!response || response.text === baselineText) {
+        if (!latestText && Date.now() - startedAt > 120000) {
+          finished = true;
+          observer.disconnect();
+          clearInterval(interval);
+          clearTimeout(sampleTimer);
+          await sendRuntime({
+            type: "JOB_RESULT",
+            providerId,
+            ok: false,
+            error: "已提交，但 120 秒内未检测到可同步的回答；可能是该站点回答 DOM 结构已变化"
+          });
+        }
+        return;
+      }
 
       if (response.text !== latestText) {
         latestText = response.text;
@@ -445,9 +471,15 @@
       if (!editorContainsPrompt(editor, prompt)) throw new Error("找到输入框，但无法可靠写入 Prompt");
 
       await progress(providerId, "working", "等待发送按钮");
+      const beforeSubmitUrl = location.href;
       await submit(editor, adapter, providerId);
-      const accepted = await waitFor(() => !editorContainsPrompt(editor, prompt), 5000, 160);
-      if (!accepted) throw new Error("已尝试发送，但输入框内容未清空；请在该页面手动确认发送");
+
+      // Different AI sites update or replace their composer DOM differently after
+      // submission. In particular, DeepSeek and Qwen may leave the old editor
+      // node/value readable even though the message was accepted. Treat editor
+      // clearing as only one possible submission signal, never as a hard gate.
+      await progress(providerId, "working", "已提交，等待回答");
+      await waitForSubmissionSignal(adapter, editor, prompt, baseline, beforeSubmitUrl);
 
       await sendRuntime({ type: "JOB_RESULT", providerId, ok: true });
       await monitorResponse(job, adapter, editor, baseline);
