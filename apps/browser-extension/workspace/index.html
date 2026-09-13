@@ -3,51 +3,63 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AI Parallel Workspace</title>
+  <title>AI Parallel</title>
   <link rel="stylesheet" href="workspace.css" />
 </head>
 <body>
   <div class="app-shell">
     <header class="topbar">
       <div class="brand-block">
-        <div class="brand-mark">AP</div>
-        <div>
-          <h1>AI Parallel</h1>
-          <p>Multi-model comparison workspace</p>
+        <div class="brand-mark" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="brand-copy">
+          <div class="brand-title-row">
+            <h1>AI Parallel</h1>
+            <span class="workspace-badge">Workspace</span>
+          </div>
+          <p>Compare model responses in one place</p>
         </div>
       </div>
       <div class="top-actions">
         <div class="run-indicator" id="runIndicator">Ready</div>
         <div class="layout-switch" aria-label="布局">
           <button type="button" data-layout="auto" class="active">Auto</button>
-          <button type="button" data-layout="1">1</button>
-          <button type="button" data-layout="2">2</button>
-          <button type="button" data-layout="3">3</button>
+          <button type="button" data-layout="1" aria-label="单列">1</button>
+          <button type="button" data-layout="2" aria-label="两列">2</button>
+          <button type="button" data-layout="3" aria-label="三列">3</button>
         </div>
       </div>
     </header>
 
     <section class="composer-card">
-      <div class="provider-row" id="providerRow"></div>
-      <div class="composer-row">
-        <textarea id="promptInput" rows="3" placeholder="输入一个问题，同时发送给多个模型。Ctrl / Cmd + Enter 发送。"></textarea>
-        <button id="sendBtn" class="primary-btn" type="button">
-          <span>并行发送</span>
-          <kbd>⌘↵</kbd>
-        </button>
+      <div class="composer-head">
+        <span class="section-label">Models</span>
+        <div class="provider-row" id="providerRow"></div>
       </div>
-      <div class="composer-meta">
-        <span id="selectionMeta">0 个模型</span>
-        <span id="charMeta">0 字符</span>
-        <span id="errorText" class="error-text" hidden></span>
+      <div class="composer-row">
+        <div class="prompt-shell">
+          <textarea id="promptInput" rows="2" placeholder="Ask once. Compare every model side by side."></textarea>
+          <div class="composer-meta">
+            <span id="selectionMeta">0 个模型</span>
+            <span class="meta-separator">·</span>
+            <span id="charMeta">0 字符</span>
+            <span id="errorText" class="error-text" hidden></span>
+          </div>
+        </div>
+        <button id="sendBtn" class="primary-btn" type="button">
+          <span>Run</span>
+          <kbd>⌘ ↵</kbd>
+        </button>
       </div>
     </section>
 
     <main id="workspaceGrid" class="workspace-grid" data-layout="auto" data-count="0">
       <section class="empty-state" id="emptyState">
-        <div class="empty-icon">⇄</div>
-        <h2>一个页面，对比多个模型</h2>
-        <p>选择模型并发送 Prompt。各模型仍使用你现有的网页登录态，回答会实时镜像到这里。</p>
+        <div class="empty-visual" aria-hidden="true"><span></span><span></span><span></span></div>
+        <h2>Start a comparison</h2>
+        <p>Choose models, enter one prompt, and watch responses stream into a single workspace.</p>
+        <div class="empty-hint">Ctrl / Cmd + Enter to run</div>
       </section>
     </main>
   </div>
@@ -57,19 +69,19 @@
       <header class="panel-header">
         <div class="model-identity">
           <span class="model-dot"></span>
-          <div>
+          <div class="model-copy">
             <h2 class="model-name"></h2>
             <p class="model-status"></p>
           </div>
         </div>
         <div class="panel-actions">
           <span class="elapsed"></span>
-          <button type="button" class="icon-btn expand-btn" title="放大">⤢</button>
-          <button type="button" class="icon-btn open-btn" title="打开原网页">↗</button>
+          <button type="button" class="icon-btn expand-btn" title="放大" aria-label="放大面板">⤢</button>
+          <button type="button" class="icon-btn open-btn" title="打开原网页" aria-label="打开原网页">↗</button>
         </div>
       </header>
       <div class="response-body">
-        <div class="response-placeholder">等待运行</div>
+        <div class="response-placeholder">Waiting for model</div>
         <div class="response-content"></div>
       </div>
     </article>
