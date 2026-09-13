@@ -21,7 +21,8 @@
       ],
       newChatTexts: ["New chat", "新聊天", "新建聊天", "新对话"],
       sendReadyTimeoutMs: 8000,
-      rootIsFreshConversation: true
+      rootIsFreshConversation: true,
+      inputMode: "paste"
     },
     deepseek: {
       hosts: ["chat.deepseek.com"],
@@ -199,7 +200,7 @@
     element.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
   }
 
-  async function fillEditor(editor, prompt) {
+  async function fillEditor(editor, prompt, adapter) {
     editor.focus();
 
     if (editor instanceof HTMLTextAreaElement || editor instanceof HTMLInputElement) {
@@ -207,6 +208,24 @@
       dispatchInput(editor, prompt);
       await sleep(120);
       return;
+    }
+
+    // ChatGPT's current composer is ProseMirror. Dispatching a paste event lets
+    // ProseMirror update its internal document state instead of only mutating DOM.
+    if (adapter?.inputMode === "paste") {
+      try {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.setData("text/plain", prompt);
+        editor.dispatchEvent(new ClipboardEvent("paste", {
+          clipboardData: dataTransfer,
+          bubbles: true,
+          cancelable: true
+        }));
+        await sleep(180);
+        if (editorContainsPrompt(editor, prompt)) return;
+      } catch {
+        // Fall through to generic contenteditable insertion.
+      }
     }
 
     // ProseMirror / Lexical / Quill style contenteditable editors.
@@ -352,10 +371,10 @@
       }
 
       await progress(providerId, "working", "正在填写 Prompt");
-      await fillEditor(editor, prompt);
+      await fillEditor(editor, prompt, adapter);
 
       if (!editorContainsPrompt(editor, prompt)) {
-        await fillEditor(editor, prompt);
+        await fillEditor(editor, prompt, adapter);
       }
       if (!editorContainsPrompt(editor, prompt)) {
         throw new Error("找到输入框，但无法可靠写入 Prompt");
