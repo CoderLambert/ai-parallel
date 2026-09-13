@@ -1,9 +1,9 @@
 const PROVIDERS = [
-  { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", default: true },
+  { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", origins: ["https://chatgpt.com", "https://chat.openai.com"], default: true },
   { id: "deepseek", name: "DeepSeek", url: "https://chat.deepseek.com/", default: true },
   { id: "zhipu", name: "智谱清言", url: "https://chatglm.cn/", default: true },
   { id: "qwen", name: "Qwen", url: "https://chat.qwen.ai/", default: true },
-  { id: "kimi", name: "Kimi", url: "https://www.kimi.com/", default: true },
+  { id: "kimi", name: "Kimi", url: "https://www.kimi.com/", origins: ["https://www.kimi.com", "https://kimi.com"], default: true },
   { id: "claude", name: "Claude", url: "https://claude.ai/new", default: false },
   { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", default: false }
 ];
@@ -29,8 +29,8 @@ function providerById(id) {
   return PROVIDERS.find((provider) => provider.id === id);
 }
 
-function providerOrigin(provider) {
-  return new URL(provider.url).origin;
+function providerOrigins(provider) {
+  return provider.origins || [new URL(provider.url).origin];
 }
 
 function showError(message = "") {
@@ -76,10 +76,10 @@ function postToFrame(providerId, payload) {
   const panel = panels.get(providerId);
   const iframe = panel?.querySelector("iframe");
   if (!provider || !iframe?.contentWindow) return false;
-  iframe.contentWindow.postMessage(
-    { ...payload, context: MESSAGE_CONTEXT, providerId },
-    providerOrigin(provider)
-  );
+  const message = { ...payload, context: MESSAGE_CONTEXT, providerId };
+  for (const origin of providerOrigins(provider)) {
+    iframe.contentWindow.postMessage(message, origin);
+  }
   return true;
 }
 
@@ -151,7 +151,7 @@ function findProviderForMessage(event) {
     const provider = providerById(providerId);
     const iframe = panel.querySelector("iframe");
     if (!provider || event.source !== iframe.contentWindow) continue;
-    if (event.origin !== providerOrigin(provider)) continue;
+    if (!providerOrigins(provider).includes(event.origin)) continue;
     return providerId;
   }
   return null;
