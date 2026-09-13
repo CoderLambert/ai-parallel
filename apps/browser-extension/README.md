@@ -1,40 +1,33 @@
 # AI Parallel Browser Extension
 
-Manifest V3 browser extension that opens a dedicated comparison Workspace and drives AI web pages as background worker tabs.
+AI Parallel v2 uses a live iframe workspace instead of mirroring model responses through DOM scraping.
 
-## User flow
+## Architecture
 
-1. Click the extension icon.
-2. AI Parallel opens/focuses `workspace/index.html` in a normal browser tab.
-3. Select providers and enter a prompt.
-4. The service worker opens provider pages in a collapsed `AI Workers` tab group.
-5. Content scripts enter and submit the prompt using the user's existing login session.
-6. Content scripts observe the latest assistant response and stream normalized blocks back to the Workspace.
-7. The Workspace renders all responses side by side.
-
-## Why worker tabs instead of iframe
-
-Provider pages can block embedding with CSP `frame-ancestors`, `X-Frame-Options`, authentication/storage behavior, or application logic. Keeping the official pages in their own tabs is substantially more robust and preserves the user's normal session.
-
-## Response mirroring
-
-The content runner extracts a provider response into safe blocks:
-
-```js
-{ type: "paragraph", text: "..." }
-{ type: "heading", level: 2, text: "..." }
-{ type: "code", text: "..." }
-{ type: "list-item", text: "..." }
-{ type: "quote", text: "..." }
-{ type: "table", text: "..." }
+```text
+Workspace extension page
+  ├─ ChatGPT iframe
+  ├─ DeepSeek iframe
+  ├─ 智谱 iframe
+  ├─ Qwen iframe
+  ├─ Kimi iframe
+  ├─ Claude iframe
+  └─ Gemini iframe
+        │
+        └─ content/frame-bridge.js handles prompt injection + submit
 ```
 
-The Workspace creates its own DOM nodes with `textContent`; remote provider HTML is not injected into the extension page.
+`rules/bypass-headers.json` removes `X-Frame-Options` and framing CSP headers only for matching `sub_frame` responses so the original provider pages can render inside the extension workspace.
 
-## Development
+Model output is not scraped or re-rendered. You see the original provider page directly, so there is no response-mirroring latency.
 
-```bash
-npm run check
-```
+## Install
 
-Then reload the unpacked extension in `chrome://extensions/`.
+Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this directory.
+
+## Security boundary
+
+- No prompt is placed in destination URLs.
+- No response content is copied into extension storage.
+- DNR rules apply only to configured provider `sub_frame` responses.
+- The extension does not request cookie access.

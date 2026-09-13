@@ -1,9 +1,9 @@
 {
   "name": "@ai-parallel/browser-extension",
   "private": true,
-  "version": "1.2.2",
-  "description": "Manifest V3 workspace for comparing AI web models in parallel.",
+  "version": "2.0.0",
+  "description": "Manifest V3 iframe workspace for comparing AI web chats in parallel.",
   "scripts": {
-    "check": "node --check service-worker.js && node --check popup.js && node --check content/runner.js && node --check content/response-monitor.js && node --check workspace/workspace.js"
+    "check": "node --check service-worker.js && node --check popup.js && node --check content/frame-bridge.js && node --check workspace/workspace.js"
   }
 }
