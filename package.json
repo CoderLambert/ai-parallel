@@ -1,9 +1,9 @@
 {
   "name": "ai-parallel",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Monorepo for parallel AI workflows across browser, web and desktop clients.",
   "scripts": {
-    "check": "node --check apps/browser-extension/service-worker.js && node --check apps/browser-extension/popup.js && node --check apps/browser-extension/content/runner.js"
+    "check": "node --check apps/browser-extension/service-worker.js && node --check apps/browser-extension/popup.js && node --check apps/browser-extension/content/runner.js && node --check apps/browser-extension/workspace/workspace.js"
   }
 }

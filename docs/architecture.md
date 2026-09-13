@@ -113,3 +113,52 @@ The next architectural milestone should be driven by product needs, not reposito
 3. add reusable comparison-session data model if needed;
 4. add a second client (web/desktop) only when it has a distinct capability;
 5. extract shared packages after concrete duplication appears.
+
+## 8. Workspace v1 runtime (v1.1)
+
+The extension's primary interaction is now a full extension page rather than a popup.
+
+```text
+Extension action
+   │
+   ▼
+workspace/index.html
+   │ LAUNCH_PARALLEL
+   ▼
+service-worker.js
+   ├─ opens provider pages as inactive worker tabs
+   ├─ groups/collapses worker tabs
+   ├─ assigns a one-time job to each tabId
+   └─ keeps the Workspace active
+        │
+        ▼
+content/runner.js
+   ├─ claims its tab-scoped job
+   ├─ creates/uses a fresh conversation
+   ├─ writes + submits the prompt
+   ├─ observes provider DOM with MutationObserver
+   ├─ normalizes the latest response into safe blocks
+   └─ emits streaming response events
+        │
+        ▼
+service worker message router
+   ├─ updates the session snapshot
+   └─ broadcasts provider patches over a Workspace port
+        │
+        ▼
+Workspace responsive comparison grid
+```
+
+### Worker tabs
+
+Worker tabs are intentionally real first-party provider pages. They retain the user's cookies/login state and are collapsed into an `AI Workers` tab group to minimize visual noise. They are not hidden browser processes, and users can always open the original page from a Workspace panel.
+
+### Streaming response extraction
+
+Provider UIs are unstable, so each adapter supplies preferred response selectors and the runner has semantic fallbacks. Updates are sampled from DOM mutations and throttled before crossing the extension message boundary. Completion uses provider stop-button hints when available plus an idle window.
+
+The response mirror is not intended to reproduce every piece of provider chrome. It extracts the answer content needed for model comparison while leaving provider-specific controls available through the original page.
+
+### Safety boundary
+
+Remote HTML is never assigned to `innerHTML` in the Workspace. The content script emits structured text blocks and the Workspace constructs local elements with `textContent`, preventing provider DOM from becoming executable extension-page markup.
