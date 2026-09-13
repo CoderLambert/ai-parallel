@@ -8,6 +8,7 @@ const PROVIDERS = [
   { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", default: false }
 ];
 
+const MESSAGE_CONTEXT = "ai-parallel-workspace";
 const $ = (selector) => document.querySelector(selector);
 const providerBar = $("#providerBar");
 const panelGrid = $("#panelGrid");
@@ -19,11 +20,17 @@ const charMeta = $("#charMeta");
 const errorText = $("#errorText");
 const dispatchStatus = $("#dispatchStatus");
 const panels = new Map();
+const pendingRequests = new Map();
 let selected = new Set();
 let currentLayout = "auto";
+let runtimeUpgradeWarning = "";
 
 function providerById(id) {
   return PROVIDERS.find((provider) => provider.id === id);
+}
+
+function providerOrigin(provider) {
+  return new URL(provider.url).origin;
 }
 
 function showError(message = "") {
@@ -35,6 +42,13 @@ function updateMeta() {
   selectionMeta.textContent = `${selected.size} 个模型`;
   charMeta.textContent = `${promptInput.value.length} 字符`;
   sendBtn.disabled = selected.size === 0 || !promptInput.value.trim();
+}
+
+function setPanelState(providerId, state, { ready } = {}) {
+  const panel = panels.get(providerId);
+  if (!panel) return;
+  if (typeof ready === "boolean") panel.dataset.ready = String(ready);
+  panel.querySelector(".provider-state").textContent = state;
 }
 
 function renderProviderBar() {
@@ -57,6 +71,22 @@ function renderProviderBar() {
   }
 }
 
+function postToFrame(providerId, payload) {
+  const provider = providerById(providerId);
+  const panel = panels.get(providerId);
+  const iframe = panel?.querySelector("iframe");
+  if (!provider || !iframe?.contentWindow) return false;
+  iframe.contentWindow.postMessage(
+    { ...payload, context: MESSAGE_CONTEXT, providerId },
+    providerOrigin(provider)
+  );
+  return true;
+}
+
+function pingFrame(providerId) {
+  postToFrame(providerId, { type: "AI_PARALLEL_PING" });
+}
+
 function ensurePanel(provider) {
   if (panels.has(provider.id)) return panels.get(provider.id);
   const fragment = panelTemplate.content.cloneNode(true);
@@ -71,8 +101,11 @@ function ensurePanel(provider) {
 
   iframe.addEventListener("load", () => {
     panel.dataset.loaded = "true";
-    panel.querySelector(".provider-state").textContent = "页面已加载";
-    setTimeout(refreshFrameStatus, 120);
+    panel.dataset.ready = "false";
+    panel.querySelector(".provider-state").textContent = "等待桥接";
+    for (const delay of [80, 400, 1200, 2500]) {
+      setTimeout(() => pingFrame(provider.id), delay);
+    }
   });
 
   panel.querySelector(".reload-btn").addEventListener("click", () => {
@@ -83,8 +116,11 @@ function ensurePanel(provider) {
   });
 
   panel.querySelector(".open-btn").addEventListener("click", async () => {
-    const response = await chrome.runtime.sendMessage({ type: "OPEN_PROVIDER_TAB", providerId: provider.id });
-    if (!response?.ok) showError(response?.error || "无法打开模型页面");
+    try {
+      await chrome.tabs.create({ url: provider.url, active: true });
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "无法打开模型页面");
+    }
   });
 
   panels.set(provider.id, panel);
@@ -105,27 +141,89 @@ function renderPanels() {
   const fragment = document.createDocumentFragment();
   for (const providerId of selectedIds) {
     const provider = providerById(providerId);
-    const panel = ensurePanel(provider);
-    fragment.append(panel);
+    fragment.append(ensurePanel(provider));
   }
   panelGrid.replaceChildren(fragment);
 }
 
-async function refreshFrameStatus() {
-  try {
-    const response = await chrome.runtime.sendMessage({ type: "GET_FRAME_STATUS" });
-    if (!response?.ok) return;
-    const frames = response.frames || {};
-    for (const [providerId, panel] of panels) {
-      const ready = Boolean(frames[providerId]?.frameId);
-      panel.dataset.ready = String(ready);
-      const state = panel.querySelector(".provider-state");
-      if (ready) state.textContent = "Ready";
-      else if (panel.dataset.loaded === "true") state.textContent = "等待桥接";
-    }
-  } catch {
-    // Service worker can restart; next poll recovers.
+function findProviderForMessage(event) {
+  for (const [providerId, panel] of panels) {
+    const provider = providerById(providerId);
+    const iframe = panel.querySelector("iframe");
+    if (!provider || event.source !== iframe.contentWindow) continue;
+    if (event.origin !== providerOrigin(provider)) continue;
+    return providerId;
   }
+  return null;
+}
+
+window.addEventListener("message", (event) => {
+  if (!event.data || event.data.context !== MESSAGE_CONTEXT) return;
+  const providerId = findProviderForMessage(event);
+  if (!providerId || event.data.providerId !== providerId) return;
+
+  if (event.data.type === "AI_PARALLEL_FRAME_READY") {
+    setPanelState(providerId, "Ready", { ready: true });
+    return;
+  }
+
+  if (event.data.type === "AI_PARALLEL_SEND_RESULT") {
+    const requestId = String(event.data.requestId || "");
+    const pending = pendingRequests.get(requestId);
+    if (!pending || pending.providerId !== providerId) return;
+    clearTimeout(pending.timer);
+    pendingRequests.delete(requestId);
+    pending.resolve({
+      ok: event.data.ok === true,
+      error: event.data.ok === true ? "" : String(event.data.error || "发送失败")
+    });
+  }
+});
+
+function waitForFrameReady(providerId, timeoutMs = 10000) {
+  const started = Date.now();
+  return new Promise((resolve) => {
+    const poll = () => {
+      const panel = panels.get(providerId);
+      if (!panel) return resolve(false);
+      if (panel.dataset.ready === "true") return resolve(true);
+      if (Date.now() - started >= timeoutMs) return resolve(false);
+      pingFrame(providerId);
+      setTimeout(poll, 250);
+    };
+    poll();
+  });
+}
+
+async function sendPromptToFrame(providerId, prompt) {
+  const ready = await waitForFrameReady(providerId);
+  if (!ready) {
+    return {
+      ok: false,
+      error: runtimeUpgradeWarning || "模型 iframe 未就绪；如果刚升级扩展，请先在 chrome://extensions 点击 Reload"
+    };
+  }
+
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      pendingRequests.delete(requestId);
+      resolve({ ok: false, error: "发送超时；请在该面板中手动确认" });
+    }, 30000);
+
+    pendingRequests.set(requestId, { providerId, resolve, timer });
+    const posted = postToFrame(providerId, {
+      type: "AI_PARALLEL_SEND",
+      requestId,
+      prompt
+    });
+
+    if (!posted) {
+      clearTimeout(timer);
+      pendingRequests.delete(requestId);
+      resolve({ ok: false, error: "模型 iframe 不存在" });
+    }
+  });
 }
 
 async function dispatchPrompt() {
@@ -133,42 +231,61 @@ async function dispatchPrompt() {
   if (!prompt) return showError("请输入 Prompt");
   if (!selected.size) return showError("至少选择一个模型");
 
-  showError();
+  showError(runtimeUpgradeWarning);
   sendBtn.disabled = true;
   dispatchStatus.textContent = `正在发送到 ${selected.size} 个模型…`;
-  for (const id of selected) {
-    const panel = panels.get(id);
-    if (panel) panel.querySelector(".provider-state").textContent = "Sending…";
-  }
+  for (const id of selected) setPanelState(id, "Sending…");
 
   try {
     await chrome.storage.local.set({ draftPrompt: promptInput.value });
-    const response = await chrome.runtime.sendMessage({
-      type: "DISPATCH_PROMPT",
-      prompt,
-      providerIds: [...selected]
-    });
-    if (!response?.ok) throw new Error(response?.error || "发送失败");
+    const pairs = await Promise.all([...selected].map(async (providerId) => [
+      providerId,
+      await sendPromptToFrame(providerId, prompt)
+    ]));
+    const results = Object.fromEntries(pairs);
 
     let failures = 0;
-    for (const [providerId, result] of Object.entries(response.results || {})) {
-      const panel = panels.get(providerId);
-      if (!panel) continue;
-      if (result?.ok) {
-        panel.querySelector(".provider-state").textContent = "Sent";
+    for (const [providerId, result] of Object.entries(results)) {
+      if (result.ok) {
+        setPanelState(providerId, "Sent", { ready: true });
       } else {
         failures += 1;
-        panel.querySelector(".provider-state").textContent = result?.error || "发送失败";
+        setPanelState(providerId, result.error || "发送失败");
       }
     }
+
     dispatchStatus.textContent = failures
-      ? `已发送；${failures} 个模型需要手动确认`
+      ? `已发送；${failures} 个模型需要处理`
       : "已发送 · 回答直接由原站实时显示";
   } catch (error) {
     showError(error instanceof Error ? error.message : String(error));
     dispatchStatus.textContent = "发送失败";
   } finally {
     updateMeta();
+  }
+}
+
+async function ensureFramingRules() {
+  const dnr = chrome.declarativeNetRequest;
+  if (!dnr?.getEnabledRulesets) {
+    runtimeUpgradeWarning = "检测到旧版扩展运行时：请打开 chrome://extensions，对 AI Parallel 点击 Reload，然后重新打开 Workspace";
+    showError(runtimeUpgradeWarning);
+    return;
+  }
+
+  try {
+    let enabled = await dnr.getEnabledRulesets();
+    if (!enabled.includes("bypass_headers") && dnr.updateEnabledRulesets) {
+      await dnr.updateEnabledRulesets({ enableRulesetIds: ["bypass_headers"] });
+      enabled = await dnr.getEnabledRulesets();
+    }
+    if (!enabled.includes("bypass_headers")) {
+      runtimeUpgradeWarning = "iframe 解锁规则未启用，请在 chrome://extensions Reload AI Parallel";
+      showError(runtimeUpgradeWarning);
+    }
+  } catch (error) {
+    runtimeUpgradeWarning = `无法确认 iframe 解锁规则：${error instanceof Error ? error.message : String(error)}`;
+    showError(runtimeUpgradeWarning);
   }
 }
 
@@ -179,7 +296,7 @@ function autosizeComposer() {
 
 promptInput.addEventListener("input", () => {
   chrome.storage.local.set({ draftPrompt: promptInput.value }).catch(() => {});
-  showError();
+  showError(runtimeUpgradeWarning);
   autosizeComposer();
   updateMeta();
 });
@@ -201,6 +318,7 @@ document.querySelectorAll(".layout-switch button").forEach((button) => {
 });
 
 async function init() {
+  await ensureFramingRules();
   const data = await chrome.storage.local.get(["selectedProviders", "draftPrompt", "workspaceLayout"]);
   selected = new Set(Array.isArray(data.selectedProviders)
     ? data.selectedProviders.filter((id) => providerById(id))
@@ -215,8 +333,12 @@ async function init() {
   renderPanels();
   autosizeComposer();
   updateMeta();
-  await refreshFrameStatus();
-  setInterval(refreshFrameStatus, 900);
+  setInterval(() => {
+    for (const id of selected) {
+      const panel = panels.get(id);
+      if (panel?.dataset.ready !== "true") pingFrame(id);
+    }
+  }, 1200);
 }
 
 init().catch((error) => showError(error instanceof Error ? error.message : String(error)));
