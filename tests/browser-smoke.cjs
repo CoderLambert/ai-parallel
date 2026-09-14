@@ -50,6 +50,13 @@ async function run() {
     await page.locator("#saveSessionBtn").click();
     await page.locator("#sessionList .prompt-card").waitFor({ state: "visible" });
     assert.match(await page.locator("#sessionList").innerText(), /CI smoke session/);
+    await page.locator("#sessionList .prompt-card").first().locator("button").first().click();
+    assert.equal(await page.locator("#sessionDrawer").getAttribute("aria-hidden"), "true");
+    assert.equal(await page.locator("#promptInput").inputValue(), "CI browser smoke prompt");
+
+    await page.locator("#sessionBtn").click();
+    await page.locator("#sessionList .prompt-card").first().locator("button").nth(1).click();
+    await page.locator("#sessionList .prompt-empty").waitFor({ state: "visible" });
 
     await page.locator("#compareBtn").click();
     assert.equal(await page.locator("#compareDrawer").getAttribute("aria-hidden"), "false");
