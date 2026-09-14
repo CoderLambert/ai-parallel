@@ -6,7 +6,7 @@ const PROVIDERS = [
   { id: "kimi", name: "Kimi", url: "https://www.kimi.com/", origins: ["https://www.kimi.com", "https://kimi.com"], default: true },
   { id: "claude", name: "Claude", url: "https://claude.ai/new", default: false },
   { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", default: false },
-  { id: "grok", name: "Grok", url: "https://grok.com/", loginUrl: "https://grok.com/", default: false }
+  { id: "grok", name: "Grok", url: "https://grok.com/", mode: "tab", default: false }
 ];
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";
@@ -112,6 +112,15 @@ function pingFrame(providerId) {
   postToFrame(providerId, { type: "AI_PARALLEL_PING" });
 }
 
+async function openProviderTab(provider) {
+  const result = await chrome.runtime.sendMessage({
+    type: "OPEN_PROVIDER_TAB",
+    providerId: provider.id
+  });
+  if (!result?.ok) throw new Error(result?.error || "无法打开模型页面");
+  return result;
+}
+
 function ensurePanel(provider) {
   if (panels.has(provider.id)) return panels.get(provider.id);
   const fragment = panelTemplate.content.cloneNode(true);
@@ -121,8 +130,41 @@ function ensurePanel(provider) {
   panel.dataset.ready = "false";
   panel.dataset.loaded = "false";
   panel.querySelector(".provider-name").textContent = provider.name;
-  iframe.src = provider.url;
   iframe.title = provider.name;
+
+  if (provider.mode === "tab") {
+    const externalProvider = panel.querySelector(".external-provider");
+    iframe.hidden = true;
+    externalProvider.hidden = false;
+    panel.dataset.loaded = "true";
+    panel.dataset.ready = "true";
+    panel.querySelector(".provider-state").textContent = "受控标签页";
+    panel.querySelector(".reload-btn").title = "打开或聚焦独立标签页";
+    panel.querySelector(".reload-btn").addEventListener("click", () => {
+      openProviderTab(provider).catch((error) => showError(error.message));
+    });
+    externalProvider.querySelector(".external-open-btn").addEventListener("click", () => {
+      openProviderTab(provider).catch((error) => showError(error.message));
+    });
+  } else {
+    iframe.src = provider.url;
+
+    iframe.addEventListener("load", () => {
+      panel.dataset.loaded = "true";
+      panel.dataset.ready = "false";
+      panel.querySelector(".provider-state").textContent = "等待桥接";
+      for (const delay of [80, 400, 1200, 2500]) {
+        setTimeout(() => pingFrame(provider.id), delay);
+      }
+    });
+
+    panel.querySelector(".reload-btn").addEventListener("click", () => {
+      panel.dataset.loaded = "false";
+      panel.dataset.ready = "false";
+      panel.querySelector(".provider-state").textContent = "重新加载";
+      iframe.src = provider.url;
+    });
+  }
 
   const authButton = panel.querySelector(".auth-btn");
   if (provider.loginUrl) {
@@ -143,25 +185,9 @@ function ensurePanel(provider) {
     });
   }
 
-  iframe.addEventListener("load", () => {
-    panel.dataset.loaded = "true";
-    panel.dataset.ready = "false";
-    panel.querySelector(".provider-state").textContent = "等待桥接";
-    for (const delay of [80, 400, 1200, 2500]) {
-      setTimeout(() => pingFrame(provider.id), delay);
-    }
-  });
-
-  panel.querySelector(".reload-btn").addEventListener("click", () => {
-    panel.dataset.loaded = "false";
-    panel.dataset.ready = "false";
-    panel.querySelector(".provider-state").textContent = "重新加载";
-    iframe.src = provider.url;
-  });
-
   panel.querySelector(".open-btn").addEventListener("click", async () => {
     try {
-      await chrome.tabs.create({ url: provider.url, active: true });
+      await openProviderTab(provider);
     } catch (error) {
       showError(error instanceof Error ? error.message : "无法打开模型页面");
     }
@@ -312,12 +338,31 @@ async function requestFrameMessage(providerId, type, payload = {}, timeoutMs = 3
   });
 }
 
-function sendPromptToFrame(providerId, prompt) {
-  return requestFrameMessage(providerId, "AI_PARALLEL_SEND", { prompt });
+async function requestProviderMessage(providerId, type, payload = {}, timeoutMs = 30000) {
+  const provider = providerById(providerId);
+  if (provider?.mode !== "tab") return requestFrameMessage(providerId, type, payload, timeoutMs);
+
+  const requestId = crypto.randomUUID();
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "PROVIDER_TAB_COMMAND",
+      providerId,
+      command: { type, requestId, ...payload }
+    });
+    return result?.ok === true
+      ? result
+      : { ok: false, error: result?.error || "独立标签页命令执行失败" };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
-function collectResponseFromFrame(providerId) {
-  return requestFrameMessage(providerId, "AI_PARALLEL_COLLECT_RESPONSE", {}, 12000);
+function sendPromptToProvider(providerId, prompt) {
+  return requestProviderMessage(providerId, "AI_PARALLEL_SEND", { prompt });
+}
+
+function collectResponseFromProvider(providerId) {
+  return requestProviderMessage(providerId, "AI_PARALLEL_COLLECT_RESPONSE", {}, 12000);
 }
 
 async function dispatchPrompt() {
@@ -336,7 +381,7 @@ async function dispatchPrompt() {
     await chrome.storage.local.set({ draftPrompt: promptInput.value });
     const pairs = await Promise.all([...selected].map(async (providerId) => [
       providerId,
-      await sendPromptToFrame(providerId, prompt)
+      await sendPromptToProvider(providerId, prompt)
     ]));
     const results = Object.fromEntries(pairs);
 
@@ -429,7 +474,7 @@ async function collectResponses() {
   try {
     const pairs = await Promise.all([...selected].map(async (providerId) => [
       providerId,
-      await collectResponseFromFrame(providerId)
+      await collectResponseFromProvider(providerId)
     ]));
     for (const [providerId, result] of pairs) responseBundles.set(providerId, result);
     const count = pairs.filter(([, result]) => result.ok).length;
@@ -620,13 +665,13 @@ async function sendToAgent() {
     renderProviderBar();
     renderPanels();
     updateMeta();
-    compareStatus.textContent = `正在打开 ${providerName(target)} iframe…`;
+    compareStatus.textContent = `正在打开 ${providerName(target)}…`;
   }
 
   sendAgentBtn.disabled = true;
   compareStatus.textContent = `正在发送上下文到 ${providerName(target)}…`;
   try {
-    const result = await sendPromptToFrame(target, buildHandoffPrompt());
+    const result = await sendPromptToProvider(target, buildHandoffPrompt());
     compareStatus.textContent = result.ok
       ? `上下文已发送到 ${providerName(target)}`
       : result.error || "Agent handoff 失败";

@@ -15,7 +15,7 @@ AI Parallel Workspace (extension page)
   ├─ Kimi iframe
   ├─ Claude iframe
   ├─ Gemini iframe
-  └─ Grok iframe
+  └─ Grok controlled top-level tab
         │
         └─ content/frame-bridge.js
              ├─ providers/core.js
@@ -27,10 +27,11 @@ AI Parallel Workspace (extension page)
                   └─ host and selector knowledge per provider
 ```
 
-The original provider page remains the primary renderer inside the workspace
-panel. When the user opens Compare, the selected iframe adapter can collect
-the latest visible response on demand for the comparison drawer; the drawer
-renders safe text and never injects provider HTML.
+The original provider page remains the primary renderer. Iframe-compatible
+providers render inside the workspace panel. Grok remains in a normal top-level
+tab so its login state and WebSocket channel retain first-party browser behavior.
+When the user opens Compare, the selected provider adapter can collect the latest
+visible response on demand; the drawer renders safe text and never injects provider HTML.
 
 ## Framing model
 
@@ -38,15 +39,19 @@ Most AI web applications send `X-Frame-Options` and/or CSP `frame-ancestors` hea
 
 Rules live in `apps/browser-extension/rules/bypass-headers.json`.
 
-The extension does not rewrite provider HTML or JavaScript. It does not request cookie permission; the provider iframe uses the browser's normal authenticated session behavior.
+The extension does not rewrite provider HTML or JavaScript. It does not request
+cookie permission. Grok is excluded from framing-header bypass rules because its
+authenticated real-time channel is not reliable in an extension iframe.
 
 ## Message flow
 
 ```text
 workspace/workspace.js
-  │ postMessage(AI_PARALLEL_SEND)
-  ▼
-provider iframe / content/frame-bridge.js
+  ├─ postMessage ─ provider iframe
+  └─ runtime message ─ service worker ─ tabs.sendMessage ─ Grok tab
+                         │
+                         ▼
+                  content/frame-bridge.js
   │ adapter.sendPrompt(prompt)
   ├─ fill editor
   └─ submit
@@ -55,10 +60,10 @@ provider iframe / content/frame-bridge.js
 workspace/workspace.js
 ```
 
-Each direct provider iframe announces `AI_PARALLEL_FRAME_READY`. The active
-workspace path routes directly to the iframe and validates both the iframe
-source and provider origin. The service worker owns workspace opening and
-standalone provider-tab actions; it does not route iframe prompts.
+Each direct provider iframe announces `AI_PARALLEL_FRAME_READY`. The workspace
+validates both iframe source and provider origin. For Grok only, the service
+worker finds or creates an allowlisted `grok.com` tab and routes provider-scoped
+commands to the same adapter contract. It never receives provider credentials.
 
 ## Provider boundaries
 
@@ -77,7 +82,7 @@ protocol.
 - Prompt contents are not put into destination URLs.
 - Response contents are not copied to extension storage.
 - No cookie/history/webRequest permission is requested.
-- Opening a provider in a normal top-level tab does not activate the iframe bridge workflow.
+- Tab-mode commands are restricted to providers explicitly marked for tab mode and to allowlisted command types.
 
 ## Inspiration
 

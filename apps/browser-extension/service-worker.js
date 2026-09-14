@@ -6,7 +6,7 @@ const PROVIDERS = {
   kimi: { name: "Kimi", url: "https://www.kimi.com/" },
   claude: { name: "Claude", url: "https://claude.ai/new" },
   gemini: { name: "Gemini", url: "https://gemini.google.com/app" },
-  grok: { name: "Grok", url: "https://grok.com/" }
+  grok: { name: "Grok", url: "https://grok.com/", tabMode: true, hosts: ["grok.com", "www.grok.com"] }
 };
 
 const PROVIDER_AUTH_HOSTS = {
@@ -14,6 +14,67 @@ const PROVIDER_AUTH_HOSTS = {
 };
 
 const WORKSPACE_PATH = "workspace/index.html";
+const PROVIDER_COMMANDS = new Set([
+  "AI_PARALLEL_SEND",
+  "AI_PARALLEL_COLLECT_RESPONSE",
+  "AI_PARALLEL_NEW_CHAT"
+]);
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function matchesProviderTab(tab, provider) {
+  if (!tab?.id || typeof tab.url !== "string") return false;
+  try {
+    return provider.hosts?.includes(new URL(tab.url).hostname) || false;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureProviderTab(providerId, { active = false } = {}) {
+  const provider = PROVIDERS[providerId];
+  if (!provider) throw new Error("Unknown provider");
+  const tabs = await chrome.tabs.query({});
+  const existing = tabs.find((tab) => matchesProviderTab(tab, provider));
+  if (existing) {
+    if (active) {
+      await chrome.tabs.update(existing.id, { active: true });
+      if (existing.windowId) await chrome.windows.update(existing.windowId, { focused: true });
+    }
+    return { tab: existing, created: false };
+  }
+  const tab = await chrome.tabs.create({ url: provider.url, active: true });
+  return { tab, created: true };
+}
+
+async function deliverProviderCommand(tabId, message, attempts) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await chrome.tabs.sendMessage(tabId, message);
+    } catch (error) {
+      lastError = error;
+      await delay(250);
+    }
+  }
+  throw lastError || new Error("Provider tab is not ready");
+}
+
+async function sendProviderTabCommand(providerId, command) {
+  const provider = PROVIDERS[providerId];
+  if (!provider?.tabMode) throw new Error("Provider does not support tab mode");
+  if (!PROVIDER_COMMANDS.has(command?.type)) throw new Error("Unknown provider command");
+
+  const { tab, created } = await ensureProviderTab(providerId);
+  const message = { type: "AI_PARALLEL_TAB_COMMAND", providerId, command };
+  try {
+    return await deliverProviderCommand(tab.id, message, created ? 40 : 4);
+  } catch (error) {
+    if (created) throw error;
+    await chrome.tabs.reload(tab.id);
+    return deliverProviderCommand(tab.id, message, 40);
+  }
+}
 
 async function ensureWorkspace() {
   const workspaceUrl = chrome.runtime.getURL(WORKSPACE_PATH);
@@ -62,8 +123,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ ok: false, error: "Unknown provider" });
         return;
       }
-      const tab = await chrome.tabs.create({ url: provider.url, active: true });
+      const { tab } = await ensureProviderTab(providerId, { active: true });
       sendResponse({ ok: true, tabId: tab.id });
+      return;
+    }
+
+    if (message.type === "PROVIDER_TAB_COMMAND") {
+      const providerId = String(message.providerId || "");
+      const result = await sendProviderTabCommand(providerId, message.command);
+      sendResponse(result || { ok: false, error: "Provider did not return a result" });
       return;
     }
 

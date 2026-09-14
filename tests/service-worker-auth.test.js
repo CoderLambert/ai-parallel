@@ -7,8 +7,10 @@ const vm = require("node:vm");
 function loadServiceWorker() {
   let messageListener;
   const openedUrls = [];
+  const sentMessages = [];
   const context = {
     console,
+    setTimeout,
     URL,
     chrome: {
       action: { onClicked: { addListener() {} } },
@@ -22,8 +24,13 @@ function loadServiceWorker() {
           openedUrls.push(url);
           return { id: openedUrls.length, url };
         },
-        async query() { return []; },
-        async sendMessage() {}
+        async query() { return [{ id: 42, url: "https://grok.com/", windowId: 7 }]; },
+        async update() {},
+        async reload() {},
+        async sendMessage(tabId, message) {
+          sentMessages.push({ tabId, message });
+          return { ok: true, response: { provider: "grok", content: "answer" } };
+        }
       },
       windows: { async update() {} }
     }
@@ -34,7 +41,7 @@ function loadServiceWorker() {
     "utf8"
   );
   vm.runInContext(source, context, { filename: "service-worker.js" });
-  return { messageListener, openedUrls };
+  return { messageListener, openedUrls, sentMessages };
 }
 
 function sendMessage(listener, message) {
@@ -68,4 +75,23 @@ test("Grok authentication only opens allowlisted HTTPS URLs", async () => {
   });
   assert.equal(insecure.ok, false);
   assert.equal(openedUrls.length, 1);
+});
+
+test("Grok tab mode reuses the official top-level tab", async () => {
+  const { messageListener, openedUrls, sentMessages } = loadServiceWorker();
+  const result = await sendMessage(messageListener, {
+    type: "PROVIDER_TAB_COMMAND",
+    providerId: "grok",
+    command: {
+      type: "AI_PARALLEL_COLLECT_RESPONSE",
+      requestId: "request-1"
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(openedUrls.length, 0);
+  assert.equal(sentMessages.length, 1);
+  assert.equal(sentMessages[0].tabId, 42);
+  assert.equal(sentMessages[0].message.type, "AI_PARALLEL_TAB_COMMAND");
+  assert.equal(sentMessages[0].message.providerId, "grok");
 });

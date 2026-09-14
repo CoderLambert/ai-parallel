@@ -4,7 +4,8 @@ AI Parallel is a monorepo for comparing and orchestrating multiple AI web experi
 
 The first app is a Chrome/Edge Manifest V3 extension. It reuses the user's
 existing authenticated web sessions and embeds the selected model sites as
-live provider iframes in a single workspace.
+live provider iframes in a single workspace. Providers that are not iframe-safe,
+currently Grok, run in a controlled top-level tab through the same adapter contract.
 
 ## Current app
 
@@ -35,11 +36,13 @@ AI Parallel Workspace
         ├─ ChatGPT iframe ─ Content Script ─┐
         ├─ DeepSeek iframe ─ Content Script ├─ postMessage bridge
         ├─ Qwen iframe ───── Content Script ├─ native provider rendering
-        └─ Kimi iframe ───── Content Script ┘
+        ├─ Kimi iframe ───── Content Script ┘
+        └─ Grok tab ─ Service Worker ─ tabs.sendMessage bridge
 ```
 
 Prompts are not transported in destination URLs. The workspace sends one-time
-jobs to the selected iframe through an origin-checked `postMessage` bridge.
+jobs to iframe providers through an origin-checked `postMessage` bridge and to
+tab-mode providers through a provider-scoped service-worker bridge.
 
 ## Repository structure
 

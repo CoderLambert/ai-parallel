@@ -13,14 +13,14 @@ Workspace extension page
   ├─ Kimi iframe
   ├─ Claude iframe
   ├─ Gemini iframe
-  └─ Grok iframe
+  └─ Grok controlled top-level tab
         │
         ├─ content/providers/core.js shared DOM operations
         ├─ content/providers/<provider>.js provider selectors
         └─ content/frame-bridge.js message boundary + adapter delegation
 ```
 
-`rules/bypass-headers.json` removes `X-Frame-Options` and framing CSP headers only for matching `sub_frame` responses so the original provider pages can render inside the extension workspace.
+`rules/bypass-headers.json` removes `X-Frame-Options` and framing CSP headers only for matching `sub_frame` responses so compatible provider pages can render inside the extension workspace. Grok runs in a controlled top-level tab because its authenticated WebSocket channel does not work reliably inside an extension iframe.
 
 The original provider page remains visible directly. Compare can collect the
 latest visible response on demand for safe text rendering and export; it does
@@ -30,10 +30,9 @@ not inject provider HTML or replace the native iframe view.
 
 Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this directory.
 
-Grok authentication is intentionally completed in a top-level browser tab because
-`accounts.x.ai` does not permit login inside an iframe. Grok `/sign-in` links are
-redirected to a top-level tab automatically; alternatively use **登录 ↗** in the
-Grok panel. Finish signing in, return to the workspace, and reload the Grok panel.
+Grok authentication and chat run in a top-level browser tab because `accounts.x.ai`
+does not permit iframe login and Grok's real-time WebSocket is not iframe-safe. AI
+Parallel reuses that tab for prompt dispatch, response collection, and handoff.
 
 ## Security boundary
 
