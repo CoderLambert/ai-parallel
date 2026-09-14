@@ -2,6 +2,8 @@ const PROVIDERS = globalThis.AIParallelProviderCatalog;
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";
 const PROMPT_LIBRARY_KEY = "promptLibrary";
+const SESSION_KEY = "workspaceSessions";
+const MAX_SESSIONS = 20;
 const $ = (selector) => document.querySelector(selector);
 const providerBar = $("#providerBar");
 const panelGrid = $("#panelGrid");
@@ -22,6 +24,13 @@ const copyJsonBtn = $("#copyJsonBtn");
 const downloadMarkdownBtn = $("#downloadMarkdownBtn");
 const handoffTarget = $("#handoffTarget");
 const sendAgentBtn = $("#sendAgentBtn");
+const sessionBtn = $("#sessionBtn");
+const sessionDrawer = $("#sessionDrawer");
+const closeSessionBtn = $("#closeSessionBtn");
+const sessionStatus = $("#sessionStatus");
+const sessionTitleInput = $("#sessionTitleInput");
+const saveSessionBtn = $("#saveSessionBtn");
+const sessionList = $("#sessionList");
 const promptLibraryBtn = $("#promptLibraryBtn");
 const promptLibraryDrawer = $("#promptLibraryDrawer");
 const closePromptLibraryBtn = $("#closePromptLibraryBtn");
@@ -35,6 +44,7 @@ const pendingRequests = new Map();
 const responseBundles = new Map();
 const pendingCollections = new Set();
 let promptLibraryEntries = [];
+let sessionEntries = [];
 let selected = new Set();
 let currentLayout = "auto";
 let runtimeUpgradeWarning = "";
@@ -523,6 +533,7 @@ async function collectResponses() {
 
 function openCompareDrawer() {
   closePromptLibraryDrawer();
+  closeSessionDrawer();
   compareDrawer.dataset.open = "true";
   compareDrawer.setAttribute("aria-hidden", "false");
   collectResponses().catch((error) => {
@@ -597,6 +608,7 @@ async function loadPromptLibrary() {
 
 function openPromptLibraryDrawer() {
   closeCompareDrawer();
+  closeSessionDrawer();
   promptLibraryDrawer.dataset.open = "true";
   promptLibraryDrawer.setAttribute("aria-hidden", "false");
   loadPromptLibrary().catch((error) => {
@@ -607,6 +619,148 @@ function openPromptLibraryDrawer() {
 function closePromptLibraryDrawer() {
   promptLibraryDrawer.dataset.open = "false";
   promptLibraryDrawer.setAttribute("aria-hidden", "true");
+}
+
+function renderSessions() {
+  sessionList.replaceChildren();
+  if (!sessionEntries.length) {
+    sessionList.innerHTML = '<div class="prompt-empty">还没有保存的 Session</div>';
+    return;
+  }
+
+  for (const entry of sessionEntries) {
+    const card = document.createElement("article");
+    card.className = "prompt-card";
+
+    const header = document.createElement("header");
+    header.className = "prompt-card-header";
+    const title = document.createElement("div");
+    title.className = "prompt-card-title";
+    title.textContent = entry.title;
+    const date = document.createElement("span");
+    date.className = "prompt-card-date";
+    date.textContent = formatPromptDate(entry.updatedAt || entry.createdAt);
+    header.append(title, date);
+
+    const content = document.createElement("div");
+    content.className = "prompt-card-content session-card-content";
+    const providerNames = entry.selectedProviders.map(providerName).join(" · ");
+    content.textContent = `${providerNames || "未选择模型"}\n${entry.prompt}`;
+
+    const actions = document.createElement("div");
+    actions.className = "prompt-card-actions";
+    const loadButton = document.createElement("button");
+    loadButton.type = "button";
+    loadButton.textContent = "加载";
+    loadButton.addEventListener("click", () => loadSession(entry));
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "删除";
+    deleteButton.addEventListener("click", () => deleteSession(entry.id));
+    actions.append(loadButton, deleteButton);
+
+    card.append(header, content, actions);
+    sessionList.append(card);
+  }
+}
+
+async function loadSessions() {
+  const data = await chrome.storage.local.get(SESSION_KEY);
+  sessionEntries = Array.isArray(data[SESSION_KEY])
+    ? data[SESSION_KEY].filter((entry) => (
+      entry
+      && typeof entry.id === "string"
+      && typeof entry.prompt === "string"
+      && entry.prompt.trim()
+      && Array.isArray(entry.selectedProviders)
+    )).map((entry) => ({
+      ...entry,
+      title: typeof entry.title === "string" && entry.title.trim() ? entry.title : promptTitleFromContent(entry.prompt),
+      prompt: entry.prompt.trim(),
+      selectedProviders: entry.selectedProviders.filter((id) => providerById(id))
+    })).filter((entry) => entry.selectedProviders.length).slice(0, MAX_SESSIONS)
+    : [];
+  renderSessions();
+}
+
+function openSessionDrawer() {
+  closeCompareDrawer();
+  closePromptLibraryDrawer();
+  sessionDrawer.dataset.open = "true";
+  sessionDrawer.setAttribute("aria-hidden", "false");
+  loadSessions().catch((error) => {
+    sessionStatus.textContent = error instanceof Error ? error.message : String(error);
+  });
+}
+
+function closeSessionDrawer() {
+  sessionDrawer.dataset.open = "false";
+  sessionDrawer.setAttribute("aria-hidden", "true");
+}
+
+async function saveCurrentSession() {
+  const prompt = promptInput.value.trim();
+  if (!prompt) {
+    sessionStatus.textContent = "当前没有可保存的 Prompt";
+    return;
+  }
+  if (!selected.size) {
+    sessionStatus.textContent = "至少选择一个模型后才能保存 Session";
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const entry = {
+    id: crypto.randomUUID(),
+    title: sessionTitleInput.value.trim() || promptTitleFromContent(prompt),
+    prompt,
+    selectedProviders: PROVIDERS.map((provider) => provider.id).filter((id) => selected.has(id)),
+    workspaceLayout: currentLayout,
+    createdAt: now,
+    updatedAt: now
+  };
+  sessionEntries = [entry, ...sessionEntries].slice(0, MAX_SESSIONS);
+  await chrome.storage.local.set({ [SESSION_KEY]: sessionEntries });
+  sessionTitleInput.value = "";
+  renderSessions();
+  sessionStatus.textContent = "Session 已保存；回答不会随 Session 保存";
+}
+
+async function deleteSession(id) {
+  sessionEntries = sessionEntries.filter((entry) => entry.id !== id);
+  await chrome.storage.local.set({ [SESSION_KEY]: sessionEntries });
+  renderSessions();
+  sessionStatus.textContent = "Session 已删除";
+}
+
+async function loadSession(entry) {
+  const providerIds = entry.selectedProviders.filter((id) => providerById(id));
+  if (!providerIds.length) {
+    sessionStatus.textContent = "Session 没有可用的模型选择";
+    return;
+  }
+
+  selected = new Set(providerIds);
+  promptInput.value = entry.prompt;
+  currentLayout = ["auto", "1", "2", "3"].includes(entry.workspaceLayout) ? entry.workspaceLayout : "auto";
+  responseBundles.clear();
+  await chrome.storage.local.set({
+    draftPrompt: promptInput.value,
+    selectedProviders: providerIds,
+    workspaceLayout: currentLayout
+  });
+  renderProviderBar();
+  renderPanels();
+  renderResponses();
+  panelGrid.dataset.layout = currentLayout;
+  document.querySelectorAll(".layout-switch button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.layout === currentLayout);
+  });
+  autosizeComposer();
+  updateMeta();
+  dispatchStatus.textContent = "Session 已恢复 · Compare 可重新收集回答";
+  showError(runtimeUpgradeWarning);
+  closeSessionDrawer();
 }
 
 async function saveCurrentPrompt() {
@@ -784,6 +938,11 @@ promptInput.addEventListener("keydown", (event) => {
   }
 });
 sendBtn.addEventListener("click", dispatchPrompt);
+sessionBtn.addEventListener("click", openSessionDrawer);
+closeSessionBtn.addEventListener("click", closeSessionDrawer);
+saveSessionBtn.addEventListener("click", () => saveCurrentSession().catch((error) => {
+  sessionStatus.textContent = error instanceof Error ? error.message : String(error);
+}));
 promptLibraryBtn.addEventListener("click", openPromptLibraryDrawer);
 closePromptLibraryBtn.addEventListener("click", closePromptLibraryDrawer);
 savePromptBtn.addEventListener("click", () => saveCurrentPrompt().catch((error) => {

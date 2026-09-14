@@ -35,6 +35,11 @@ The v2.1 comparison workspace foundation is implemented across provider adapters
 
 The main known follow-up is live selector validation against authenticated provider pages, together with broader browser-backed provider fixtures. See [v2.1 comparison workspace plan](v2.1-comparison-workspace-plan.md) and [v2.1 Phase 0 review](v2.1-phase0-review.md) for the current technical detail.
 
+The first P1 session-management foundation is now implemented: users can save
+and restore the question, selected providers, and layout locally. Response
+content is intentionally excluded from saved sessions and must be collected
+again after restoration.
+
 ## Roadmap maintenance
 
 When priorities change, update this document at the high level and create or update the corresponding GitHub Issues with concrete scope, acceptance criteria, dependencies, and verification results. Avoid turning this file into a second issue tracker.

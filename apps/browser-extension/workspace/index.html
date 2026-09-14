@@ -16,6 +16,7 @@
       </div>
       <div class="toolbar-center" id="providerBar"></div>
       <div class="toolbar-actions">
+        <button id="sessionBtn" type="button" class="compare-trigger">Sessions</button>
         <button id="promptLibraryBtn" type="button" class="compare-trigger">Prompts</button>
         <button id="compareBtn" type="button" class="compare-trigger">Compare</button>
         <div class="layout-switch" aria-label="布局">
@@ -86,6 +87,21 @@
       <button id="savePromptBtn" type="button" class="drawer-btn drawer-btn-primary">保存当前 Prompt</button>
     </div>
     <div id="promptList" class="prompt-list"></div>
+  </aside>
+
+  <aside id="sessionDrawer" class="prompt-library-drawer session-drawer" aria-hidden="true">
+    <header class="drawer-header">
+      <div>
+        <div class="drawer-title">Sessions</div>
+        <div id="sessionStatus" class="drawer-status">只保存问题、模型选择和布局；回答需要重新收集</div>
+      </div>
+      <button id="closeSessionBtn" type="button" class="drawer-close" title="关闭">×</button>
+    </header>
+    <div class="prompt-library-create">
+      <input id="sessionTitleInput" type="text" maxlength="80" placeholder="Session 名称（可选）" />
+      <button id="saveSessionBtn" type="button" class="drawer-btn drawer-btn-primary">保存当前 Session</button>
+    </div>
+    <div id="sessionList" class="prompt-list"></div>
   </aside>
 
   <template id="panelTemplate">

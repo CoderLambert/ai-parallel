@@ -113,6 +113,7 @@ textarea { width: 100%; min-height: 38px; max-height: 130px; resize: none; borde
 .prompt-card-title { min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .prompt-card-date { flex: 0 0 auto; color: var(--subtle); font-size: 9px; }
 .prompt-card-content { display: -webkit-box; margin: 6px 0 9px; overflow: hidden; color: var(--muted); font-size: 10px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.session-card-content { white-space: pre-line; }
 .prompt-card-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .prompt-card-actions button { min-height: 25px; border: 1px solid var(--border); border-radius: 6px; padding: 0 8px; background: #151820; color: var(--muted); cursor: pointer; font-size: 9px; }
 .prompt-card-actions button:hover { background: var(--surface-2); color: var(--text); }
