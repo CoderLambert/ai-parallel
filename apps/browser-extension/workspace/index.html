@@ -15,18 +15,22 @@
         <span class="version">Live Web</span>
       </div>
       <div class="toolbar-center" id="providerBar"></div>
-      <div class="layout-switch" aria-label="布局">
-        <button type="button" data-layout="auto" class="active">Auto</button>
-        <button type="button" data-layout="1">1</button>
-        <button type="button" data-layout="2">2</button>
-        <button type="button" data-layout="3">3</button>
+      <div class="toolbar-actions">
+        <button id="promptLibraryBtn" type="button" class="compare-trigger">Prompts</button>
+        <button id="compareBtn" type="button" class="compare-trigger">Compare</button>
+        <div class="layout-switch" aria-label="布局">
+          <button type="button" data-layout="auto" class="active">Auto</button>
+          <button type="button" data-layout="1">1</button>
+          <button type="button" data-layout="2">2</button>
+          <button type="button" data-layout="3">3</button>
+        </div>
       </div>
     </header>
 
     <main id="panelGrid" class="panel-grid" data-layout="auto" data-count="0"></main>
 
     <section class="composer-shell">
-      <div id="dispatchStatus" class="dispatch-status">原站实时显示 · 不再抓取回答</div>
+      <div id="dispatchStatus" class="dispatch-status">原站实时显示 · Compare 可按需收集回答</div>
       <div class="composer">
         <textarea id="promptInput" rows="1" placeholder="Ask all selected models…"></textarea>
         <button id="sendBtn" type="button">
@@ -41,6 +45,47 @@
       </div>
     </section>
   </div>
+
+  <aside id="compareDrawer" class="compare-drawer" aria-hidden="true">
+    <header class="drawer-header">
+      <div>
+        <div class="drawer-title">Comparison</div>
+        <div id="compareStatus" class="drawer-status">按需收集已选模型的当前回答</div>
+      </div>
+      <button id="closeCompareBtn" type="button" class="drawer-close" title="关闭">×</button>
+    </header>
+    <div id="responseList" class="response-list"></div>
+    <footer class="drawer-footer">
+      <div class="export-actions">
+        <button id="copyMarkdownBtn" type="button" class="drawer-btn">Copy Markdown</button>
+        <button id="copyJsonBtn" type="button" class="drawer-btn">Copy JSON</button>
+        <button id="downloadMarkdownBtn" type="button" class="drawer-btn">Download md</button>
+      </div>
+      <div class="handoff-row">
+        <select id="handoffTarget" aria-label="目标 Agent">
+          <option value="chatgpt">ChatGPT</option>
+          <option value="claude">Claude</option>
+          <option value="gemini">Gemini</option>
+        </select>
+        <button id="sendAgentBtn" type="button" class="drawer-btn drawer-btn-primary">Send Agent</button>
+      </div>
+    </footer>
+  </aside>
+
+  <aside id="promptLibraryDrawer" class="prompt-library-drawer" aria-hidden="true">
+    <header class="drawer-header">
+      <div>
+        <div class="drawer-title">Prompt Library</div>
+        <div id="promptLibraryStatus" class="drawer-status">保存在当前浏览器扩展存储中</div>
+      </div>
+      <button id="closePromptLibraryBtn" type="button" class="drawer-close" title="关闭">×</button>
+    </header>
+    <div class="prompt-library-create">
+      <input id="promptTitleInput" type="text" maxlength="80" placeholder="Prompt 名称（可选）" />
+      <button id="savePromptBtn" type="button" class="drawer-btn drawer-btn-primary">保存当前 Prompt</button>
+    </div>
+    <div id="promptList" class="prompt-list"></div>
+  </aside>
 
   <template id="panelTemplate">
     <article class="provider-panel">
@@ -62,6 +107,7 @@
     </article>
   </template>
 
+  <script src="context-utils.js"></script>
   <script src="workspace.js"></script>
 </body>
 </html>

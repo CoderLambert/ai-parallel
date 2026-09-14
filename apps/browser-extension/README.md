@@ -14,12 +14,16 @@ Workspace extension page
   ├─ Claude iframe
   └─ Gemini iframe
         │
-        └─ content/frame-bridge.js handles prompt injection + submit
+        ├─ content/providers/core.js shared DOM operations
+        ├─ content/providers/<provider>.js provider selectors
+        └─ content/frame-bridge.js message boundary + adapter delegation
 ```
 
 `rules/bypass-headers.json` removes `X-Frame-Options` and framing CSP headers only for matching `sub_frame` responses so the original provider pages can render inside the extension workspace.
 
-Model output is not scraped or re-rendered. You see the original provider page directly, so there is no response-mirroring latency.
+The original provider page remains visible directly. Compare can collect the
+latest visible response on demand for safe text rendering and export; it does
+not inject provider HTML or replace the native iframe view.
 
 ## Install
 

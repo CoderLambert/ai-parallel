@@ -15,7 +15,6 @@ const sendBtn = $("#sendBtn");
 const selectedCount = $("#selectedCount");
 const charCount = $("#charCount");
 const errorBox = $("#errorBox");
-const statusList = $("#statusList");
 
 let selected = new Set();
 
@@ -63,48 +62,6 @@ async function loadPreferences() {
   updateCounters();
 }
 
-function renderStatus(status) {
-  if (!status || !status.providers || Object.keys(status.providers).length === 0) {
-    statusList.className = "status-list empty";
-    statusList.textContent = "暂无运行记录";
-    return;
-  }
-
-  statusList.className = "status-list";
-  statusList.replaceChildren();
-
-  for (const [providerId, entry] of Object.entries(status.providers)) {
-    const providerName = entry.name || PROVIDERS.find((p) => p.id === providerId)?.name || providerId;
-    const item = document.createElement("div");
-    item.className = "status-item";
-    item.dataset.state = entry.state || "waiting";
-    item.innerHTML = `
-      <span class="dot"></span>
-      <span>${providerName}</span>
-      <span class="status-message" title="${escapeHtml(entry.message || "")}">${escapeHtml(entry.message || "")}</span>
-    `;
-    statusList.append(item);
-  }
-}
-
-function escapeHtml(text) {
-  return String(text)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-async function refreshStatus() {
-  try {
-    const response = await chrome.runtime.sendMessage({ type: "GET_LAST_STATUS" });
-    if (response?.ok) renderStatus(response.status);
-  } catch {
-    // Popup remains useful even if the service worker is restarting.
-  }
-}
-
 async function launch() {
   const prompt = promptInput.value.trim();
   if (!prompt) return showError("请输入 Prompt");
@@ -115,14 +72,19 @@ async function launch() {
   sendBtn.querySelector("span").textContent = "正在打开…";
 
   try {
-    await chrome.storage.local.set({ draftPrompt: promptInput.value });
+    await chrome.storage.local.set({
+      draftPrompt: promptInput.value,
+      selectedProviders: [...selected],
+      pendingLaunch: {
+        prompt,
+        providerIds: [...selected],
+        queuedAt: new Date().toISOString()
+      }
+    });
     const response = await chrome.runtime.sendMessage({
-      type: "LAUNCH_PARALLEL",
-      prompt,
-      providerIds: [...selected]
+      type: "OPEN_WORKSPACE"
     });
     if (!response?.ok) throw new Error(response?.error || "启动失败");
-    await refreshStatus();
     window.close();
   } catch (error) {
     showError(error instanceof Error ? error.message : String(error));
@@ -161,7 +123,6 @@ $("#toggleAllBtn").addEventListener("click", async () => {
   updateCounters();
 });
 
-$("#refreshBtn").addEventListener("click", refreshStatus);
 sendBtn.addEventListener("click", launch);
 
-loadPreferences().then(refreshStatus);
+loadPreferences();

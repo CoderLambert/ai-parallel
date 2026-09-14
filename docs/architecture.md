@@ -17,12 +17,19 @@ AI Parallel Workspace (extension page)
   └─ Gemini iframe
         │
         └─ content/frame-bridge.js
-             ├─ locates provider editor
-             ├─ injects the shared prompt
-             └─ submits through the provider UI
+             ├─ providers/core.js
+             │    ├─ locates provider editor
+             │    ├─ injects the shared prompt
+             │    ├─ submits through the provider UI
+             │    └─ exposes collectResponse/newChat hooks
+             └─ providers/<provider>.js
+                  └─ host and selector knowledge per provider
 ```
 
-The provider response is never scraped into a second renderer. The original provider page renders its own response directly inside the workspace panel. This removes the latency and fragility introduced by DOM response mirroring.
+The original provider page remains the primary renderer inside the workspace
+panel. When the user opens Compare, the selected iframe adapter can collect
+the latest visible response on demand for the comparison drawer; the drawer
+renders safe text and never injects provider HTML.
 
 ## Framing model
 
@@ -36,25 +43,32 @@ The extension does not rewrite provider HTML or JavaScript. It does not request 
 
 ```text
 workspace/workspace.js
-  │ DISPATCH_PROMPT
+  │ postMessage(AI_PARALLEL_SEND)
   ▼
-service-worker.js
-  │ frame registry: workspace tab + provider -> frameId
-  │ chrome.tabs.sendMessage(..., { frameId })
-  ▼
-content/frame-bridge.js
-  │
+provider iframe / content/frame-bridge.js
+  │ adapter.sendPrompt(prompt)
   ├─ fill editor
   └─ submit
+  │ postMessage(AI_PARALLEL_SEND_RESULT)
+  ▼
+workspace/workspace.js
 ```
 
-Each direct provider iframe announces `FRAME_READY`. The service worker stores the provider/frame mapping in `chrome.storage.session`, so service-worker suspension does not lose routing state.
+Each direct provider iframe announces `AI_PARALLEL_FRAME_READY`. The active
+workspace path routes directly to the iframe and validates both the iframe
+source and provider origin. The service worker owns workspace opening and
+standalone provider-tab actions; it does not route iframe prompts.
 
 ## Provider boundaries
 
-Provider-specific DOM knowledge is isolated in `content/frame-bridge.js`. The workspace only knows provider identity, URL, layout, and readiness state. It never knows response selectors.
+Provider-specific DOM knowledge is isolated in `content/providers/<provider>.js`,
+with shared DOM operations in `content/providers/core.js`. The bridge only
+validates the message boundary and delegates to the selected adapter. The
+workspace only knows provider identity, URL, layout, and readiness state; it
+never knows response selectors.
 
-As provider handling grows, split `frame-bridge.js` into provider adapters without changing the workspace protocol.
+Provider adapters can grow independently without changing the workspace
+protocol.
 
 ## Security model
 

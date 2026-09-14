@@ -9,6 +9,7 @@ const PROVIDERS = [
 ];
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";
+const PROMPT_LIBRARY_KEY = "promptLibrary";
 const $ = (selector) => document.querySelector(selector);
 const providerBar = $("#providerBar");
 const panelGrid = $("#panelGrid");
@@ -19,11 +20,32 @@ const selectionMeta = $("#selectionMeta");
 const charMeta = $("#charMeta");
 const errorText = $("#errorText");
 const dispatchStatus = $("#dispatchStatus");
+const compareBtn = $("#compareBtn");
+const compareDrawer = $("#compareDrawer");
+const closeCompareBtn = $("#closeCompareBtn");
+const compareStatus = $("#compareStatus");
+const responseList = $("#responseList");
+const copyMarkdownBtn = $("#copyMarkdownBtn");
+const copyJsonBtn = $("#copyJsonBtn");
+const downloadMarkdownBtn = $("#downloadMarkdownBtn");
+const handoffTarget = $("#handoffTarget");
+const sendAgentBtn = $("#sendAgentBtn");
+const promptLibraryBtn = $("#promptLibraryBtn");
+const promptLibraryDrawer = $("#promptLibraryDrawer");
+const closePromptLibraryBtn = $("#closePromptLibraryBtn");
+const promptLibraryStatus = $("#promptLibraryStatus");
+const promptTitleInput = $("#promptTitleInput");
+const savePromptBtn = $("#savePromptBtn");
+const promptList = $("#promptList");
+const workspaceUtils = globalThis.AIParallelWorkspaceUtils;
 const panels = new Map();
 const pendingRequests = new Map();
+const responseBundles = new Map();
+let promptLibraryEntries = [];
 let selected = new Set();
 let currentLayout = "auto";
 let runtimeUpgradeWarning = "";
+let pendingLaunchRunning = false;
 
 function providerById(id) {
   return PROVIDERS.find((provider) => provider.id === id);
@@ -62,9 +84,11 @@ function renderProviderBar() {
     button.addEventListener("click", async () => {
       if (selected.has(provider.id)) selected.delete(provider.id);
       else selected.add(provider.id);
+      if (!selected.has(provider.id)) responseBundles.delete(provider.id);
       await chrome.storage.local.set({ selectedProviders: [...selected] });
       renderProviderBar();
       renderPanels();
+      renderResponses();
       updateMeta();
     });
     providerBar.append(button);
@@ -133,6 +157,7 @@ function renderPanels() {
 
   for (const [providerId, panel] of [...panels]) {
     if (!selected.has(providerId)) {
+      cancelPendingRequests(providerId, "模型面板已关闭");
       panel.remove();
       panels.delete(providerId);
     }
@@ -144,6 +169,15 @@ function renderPanels() {
     fragment.append(ensurePanel(provider));
   }
   panelGrid.replaceChildren(fragment);
+}
+
+function cancelPendingRequests(providerId, error) {
+  for (const [requestId, pending] of pendingRequests) {
+    if (pending.providerId !== providerId) continue;
+    clearTimeout(pending.timer);
+    pendingRequests.delete(requestId);
+    pending.resolve({ ok: false, error });
+  }
 }
 
 function findProviderForMessage(event) {
@@ -177,6 +211,33 @@ window.addEventListener("message", (event) => {
       ok: event.data.ok === true,
       error: event.data.ok === true ? "" : String(event.data.error || "发送失败")
     });
+    return;
+  }
+
+  if (event.data.type === "AI_PARALLEL_RESPONSE_RESULT") {
+    const requestId = String(event.data.requestId || "");
+    const pending = pendingRequests.get(requestId);
+    if (!pending || pending.providerId !== providerId) return;
+    clearTimeout(pending.timer);
+    pendingRequests.delete(requestId);
+    pending.resolve({
+      ok: event.data.ok === true,
+      response: event.data.ok === true ? event.data.response : null,
+      error: event.data.ok === true ? "" : String(event.data.error || "未找到模型回答")
+    });
+    return;
+  }
+
+  if (event.data.type === "AI_PARALLEL_NEW_CHAT_RESULT") {
+    const requestId = String(event.data.requestId || "");
+    const pending = pendingRequests.get(requestId);
+    if (!pending || pending.providerId !== providerId) return;
+    clearTimeout(pending.timer);
+    pendingRequests.delete(requestId);
+    pending.resolve({
+      ok: event.data.ok === true,
+      error: event.data.ok === true ? "" : String(event.data.error || "无法新建对话")
+    });
   }
 });
 
@@ -195,7 +256,7 @@ function waitForFrameReady(providerId, timeoutMs = 10000) {
   });
 }
 
-async function sendPromptToFrame(providerId, prompt) {
+async function requestFrameMessage(providerId, type, payload = {}, timeoutMs = 30000) {
   const ready = await waitForFrameReady(providerId);
   if (!ready) {
     return {
@@ -208,14 +269,14 @@ async function sendPromptToFrame(providerId, prompt) {
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       pendingRequests.delete(requestId);
-      resolve({ ok: false, error: "发送超时；请在该面板中手动确认" });
-    }, 30000);
+      resolve({ ok: false, error: type === "AI_PARALLEL_SEND" ? "发送超时；请在该面板中手动确认" : "请求超时" });
+    }, timeoutMs);
 
     pendingRequests.set(requestId, { providerId, resolve, timer });
     const posted = postToFrame(providerId, {
-      type: "AI_PARALLEL_SEND",
+      type,
       requestId,
-      prompt
+      ...payload
     });
 
     if (!posted) {
@@ -226,11 +287,21 @@ async function sendPromptToFrame(providerId, prompt) {
   });
 }
 
+function sendPromptToFrame(providerId, prompt) {
+  return requestFrameMessage(providerId, "AI_PARALLEL_SEND", { prompt });
+}
+
+function collectResponseFromFrame(providerId) {
+  return requestFrameMessage(providerId, "AI_PARALLEL_COLLECT_RESPONSE", {}, 12000);
+}
+
 async function dispatchPrompt() {
   const prompt = promptInput.value.trim();
   if (!prompt) return showError("请输入 Prompt");
   if (!selected.size) return showError("至少选择一个模型");
 
+  responseBundles.clear();
+  renderResponses();
   showError(runtimeUpgradeWarning);
   sendBtn.disabled = true;
   dispatchStatus.textContent = `正在发送到 ${selected.size} 个模型…`;
@@ -262,6 +333,308 @@ async function dispatchPrompt() {
     dispatchStatus.textContent = "发送失败";
   } finally {
     updateMeta();
+  }
+}
+
+function providerName(providerId) {
+  return providerById(providerId)?.name || providerId;
+}
+
+function formatResponseTime(timestamp) {
+  if (!timestamp) return "";
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function renderResponses() {
+  responseList.replaceChildren();
+  const selectedIds = PROVIDERS.map((provider) => provider.id).filter((id) => selected.has(id));
+  if (!selectedIds.length) {
+    responseList.innerHTML = '<div class="response-empty">请先选择模型</div>';
+    return;
+  }
+
+  if (!responseBundles.size) {
+    responseList.innerHTML = '<div class="response-empty">点击 Compare 收集当前回答</div>';
+    return;
+  }
+
+  for (const providerId of selectedIds) {
+    const result = responseBundles.get(providerId);
+    const card = document.createElement("article");
+    card.className = "response-card";
+
+    const header = document.createElement("header");
+    header.className = "response-card-header";
+    const title = document.createElement("span");
+    title.className = "response-card-title";
+    title.textContent = providerName(providerId);
+    const time = document.createElement("span");
+    time.className = "response-card-time";
+    time.textContent = formatResponseTime(result?.response?.timestamp);
+    header.append(title, time);
+    card.append(header);
+
+    if (result?.ok && result.response) {
+      const content = document.createElement("pre");
+      content.className = "response-card-content";
+      content.textContent = result.response.content || result.response.markdown || "";
+      card.append(content);
+    } else {
+      const error = document.createElement("div");
+      error.className = "response-card-error";
+      error.textContent = result?.error || "未收集到回答";
+      card.append(error);
+    }
+    responseList.append(card);
+  }
+}
+
+async function collectResponses() {
+  if (!selected.size) {
+    showError("至少选择一个模型");
+    return;
+  }
+
+  compareBtn.disabled = true;
+  compareStatus.textContent = `正在收集 ${selected.size} 个模型的回答…`;
+  responseBundles.clear();
+  renderResponses();
+
+  try {
+    const pairs = await Promise.all([...selected].map(async (providerId) => [
+      providerId,
+      await collectResponseFromFrame(providerId)
+    ]));
+    for (const [providerId, result] of pairs) responseBundles.set(providerId, result);
+    const count = pairs.filter(([, result]) => result.ok).length;
+    compareStatus.textContent = count
+      ? `已收集 ${count}/${pairs.length} 个回答 · ${new Date().toLocaleTimeString()}`
+      : "暂未找到回答；请等待模型生成完成后重试";
+    renderResponses();
+  } finally {
+    compareBtn.disabled = false;
+  }
+}
+
+function openCompareDrawer() {
+  closePromptLibraryDrawer();
+  compareDrawer.dataset.open = "true";
+  compareDrawer.setAttribute("aria-hidden", "false");
+  collectResponses().catch((error) => {
+    compareStatus.textContent = error instanceof Error ? error.message : String(error);
+  });
+}
+
+function closeCompareDrawer() {
+  compareDrawer.dataset.open = "false";
+  compareDrawer.setAttribute("aria-hidden", "true");
+}
+
+function promptTitleFromContent(content) {
+  const firstLine = content.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+  return (firstLine || "Untitled Prompt").slice(0, 80);
+}
+
+function formatPromptDate(timestamp) {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function renderPromptLibrary() {
+  promptList.replaceChildren();
+  if (!promptLibraryEntries.length) {
+    promptList.innerHTML = '<div class="prompt-empty">还没有保存的 Prompt</div>';
+    return;
+  }
+
+  for (const entry of promptLibraryEntries) {
+    const card = document.createElement("article");
+    card.className = "prompt-card";
+
+    const header = document.createElement("header");
+    header.className = "prompt-card-header";
+    const title = document.createElement("div");
+    title.className = "prompt-card-title";
+    title.textContent = entry.title;
+    const date = document.createElement("span");
+    date.className = "prompt-card-date";
+    date.textContent = formatPromptDate(entry.updatedAt || entry.createdAt);
+    header.append(title, date);
+
+    const content = document.createElement("div");
+    content.className = "prompt-card-content";
+    content.textContent = entry.content;
+
+    const actions = document.createElement("div");
+    actions.className = "prompt-card-actions";
+    const useButton = document.createElement("button");
+    useButton.type = "button";
+    useButton.textContent = "使用";
+    useButton.addEventListener("click", () => usePrompt(entry));
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.textContent = "删除";
+    deleteButton.addEventListener("click", () => deletePrompt(entry.id));
+    actions.append(useButton, deleteButton);
+
+    card.append(header, content, actions);
+    promptList.append(card);
+  }
+}
+
+async function loadPromptLibrary() {
+  const data = await chrome.storage.local.get(PROMPT_LIBRARY_KEY);
+  promptLibraryEntries = Array.isArray(data[PROMPT_LIBRARY_KEY])
+    ? data[PROMPT_LIBRARY_KEY].filter((entry) => entry && typeof entry.content === "string").slice(0, 50)
+    : [];
+  renderPromptLibrary();
+}
+
+function openPromptLibraryDrawer() {
+  closeCompareDrawer();
+  promptLibraryDrawer.dataset.open = "true";
+  promptLibraryDrawer.setAttribute("aria-hidden", "false");
+  loadPromptLibrary().catch((error) => {
+    promptLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+  });
+}
+
+function closePromptLibraryDrawer() {
+  promptLibraryDrawer.dataset.open = "false";
+  promptLibraryDrawer.setAttribute("aria-hidden", "true");
+}
+
+async function saveCurrentPrompt() {
+  const content = promptInput.value.trim();
+  if (!content) {
+    promptLibraryStatus.textContent = "当前没有可保存的 Prompt";
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const entry = {
+    id: crypto.randomUUID(),
+    title: promptTitleInput.value.trim() || promptTitleFromContent(content),
+    content,
+    createdAt: now,
+    updatedAt: now
+  };
+  promptLibraryEntries = [entry, ...promptLibraryEntries].slice(0, 50);
+  await chrome.storage.local.set({ [PROMPT_LIBRARY_KEY]: promptLibraryEntries });
+  promptTitleInput.value = "";
+  renderPromptLibrary();
+  promptLibraryStatus.textContent = "Prompt 已保存";
+}
+
+async function deletePrompt(id) {
+  promptLibraryEntries = promptLibraryEntries.filter((entry) => entry.id !== id);
+  await chrome.storage.local.set({ [PROMPT_LIBRARY_KEY]: promptLibraryEntries });
+  renderPromptLibrary();
+  promptLibraryStatus.textContent = "Prompt 已删除";
+}
+
+function usePrompt(entry) {
+  promptInput.value = entry.content;
+  chrome.storage.local.set({ draftPrompt: promptInput.value }).catch(() => {});
+  autosizeComposer();
+  updateMeta();
+  showError("");
+  closePromptLibraryDrawer();
+}
+
+function buildComparisonMarkdown() {
+  const providers = PROVIDERS.filter((provider) => selected.has(provider.id));
+  return workspaceUtils.buildComparisonMarkdown(promptInput.value.trim(), providers, responseBundles);
+}
+
+function buildComparisonJson() {
+  const providers = PROVIDERS.filter((provider) => selected.has(provider.id));
+  return workspaceUtils.buildComparisonJson(promptInput.value.trim(), providers, responseBundles);
+}
+
+async function copyText(value, successMessage) {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    textarea.remove();
+  }
+  compareStatus.textContent = successMessage;
+}
+
+function downloadMarkdown() {
+  const blob = new Blob([buildComparisonMarkdown()], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ai-parallel-${new Date().toISOString().slice(0, 10)}.md`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  compareStatus.textContent = "Markdown 已下载";
+}
+
+function buildHandoffPrompt() {
+  const providers = PROVIDERS.filter((provider) => selected.has(provider.id));
+  return workspaceUtils.buildHandoffPrompt(promptInput.value.trim(), providers, responseBundles);
+}
+
+async function sendToAgent() {
+  const target = handoffTarget.value;
+  if (!selected.has(target)) {
+    selected.add(target);
+    await chrome.storage.local.set({ selectedProviders: [...selected] });
+    renderProviderBar();
+    renderPanels();
+    updateMeta();
+    compareStatus.textContent = `正在打开 ${providerName(target)} iframe…`;
+  }
+
+  sendAgentBtn.disabled = true;
+  compareStatus.textContent = `正在发送上下文到 ${providerName(target)}…`;
+  try {
+    const result = await sendPromptToFrame(target, buildHandoffPrompt());
+    compareStatus.textContent = result.ok
+      ? `上下文已发送到 ${providerName(target)}`
+      : result.error || "Agent handoff 失败";
+  } finally {
+    sendAgentBtn.disabled = false;
+  }
+}
+
+async function runPendingLaunch(pending) {
+  if (pendingLaunchRunning || !pending || typeof pending.prompt !== "string" || !pending.prompt.trim()) return false;
+  const providerIds = Array.isArray(pending.providerIds)
+    ? pending.providerIds.filter((id) => providerById(id))
+    : [];
+  if (!providerIds.length) return false;
+
+  pendingLaunchRunning = true;
+  try {
+    selected = new Set(providerIds);
+    promptInput.value = pending.prompt;
+    await chrome.storage.local.set({
+      draftPrompt: promptInput.value,
+      selectedProviders: providerIds
+    });
+    await chrome.storage.local.remove("pendingLaunch");
+    renderProviderBar();
+    renderPanels();
+    renderResponses();
+    autosizeComposer();
+    updateMeta();
+    await dispatchPrompt();
+    return true;
+  } finally {
+    pendingLaunchRunning = false;
   }
 }
 
@@ -307,6 +680,27 @@ promptInput.addEventListener("keydown", (event) => {
   }
 });
 sendBtn.addEventListener("click", dispatchPrompt);
+promptLibraryBtn.addEventListener("click", openPromptLibraryDrawer);
+closePromptLibraryBtn.addEventListener("click", closePromptLibraryDrawer);
+savePromptBtn.addEventListener("click", () => saveCurrentPrompt().catch((error) => {
+  promptLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+}));
+compareBtn.addEventListener("click", openCompareDrawer);
+closeCompareBtn.addEventListener("click", closeCompareDrawer);
+copyMarkdownBtn.addEventListener("click", () => copyText(buildComparisonMarkdown(), "Markdown 已复制"));
+copyJsonBtn.addEventListener("click", () => copyText(buildComparisonJson(), "JSON 已复制"));
+downloadMarkdownBtn.addEventListener("click", downloadMarkdown);
+sendAgentBtn.addEventListener("click", () => sendToAgent().catch((error) => {
+  compareStatus.textContent = error instanceof Error ? error.message : String(error);
+}));
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== "RUN_PENDING_LAUNCH") return;
+  runPendingLaunch(message.pending)
+    .then((ok) => sendResponse({ ok }))
+    .catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }));
+  return true;
+});
 
 document.querySelectorAll(".layout-switch button").forEach((button) => {
   button.addEventListener("click", async () => {
@@ -319,7 +713,8 @@ document.querySelectorAll(".layout-switch button").forEach((button) => {
 
 async function init() {
   await ensureFramingRules();
-  const data = await chrome.storage.local.get(["selectedProviders", "draftPrompt", "workspaceLayout"]);
+  const data = await chrome.storage.local.get(["selectedProviders", "draftPrompt", "workspaceLayout", "pendingLaunch"]);
+  const pendingLaunch = data.pendingLaunch && typeof data.pendingLaunch === "object" ? data.pendingLaunch : null;
   selected = new Set(Array.isArray(data.selectedProviders)
     ? data.selectedProviders.filter((id) => providerById(id))
     : PROVIDERS.filter((p) => p.default).map((p) => p.id));
@@ -331,8 +726,13 @@ async function init() {
   });
   renderProviderBar();
   renderPanels();
+  renderResponses();
+  loadPromptLibrary().catch((error) => {
+    promptLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+  });
   autosizeComposer();
   updateMeta();
+  if (pendingLaunch) runPendingLaunch(pendingLaunch).catch((error) => showError(error instanceof Error ? error.message : String(error)));
   setInterval(() => {
     for (const id of selected) {
       const panel = panels.get(id);

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Parallel",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Compare multiple AI web chats side by side in one live workspace.",
   "minimum_chrome_version": "120",
   "permissions": [
@@ -52,7 +52,17 @@
         "https://claude.ai/*",
         "https://gemini.google.com/*"
       ],
-      "js": ["content/frame-bridge.js"],
+      "js": [
+        "content/providers/core.js",
+        "content/providers/chatgpt.js",
+        "content/providers/deepseek.js",
+        "content/providers/qwen.js",
+        "content/providers/kimi.js",
+        "content/providers/zhipu.js",
+        "content/providers/claude.js",
+        "content/providers/gemini.js",
+        "content/frame-bridge.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
