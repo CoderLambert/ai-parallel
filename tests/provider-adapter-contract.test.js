@@ -44,6 +44,7 @@ test("all supported providers expose the adapter contract", () => {
     assert.equal(typeof adapters[id].sendPrompt, "function");
     assert.equal(typeof adapters[id].collectResponse, "function");
     assert.equal(typeof adapters[id].newChat, "function");
+    assert.equal(typeof adapters[id].healthCheck, "function");
   }
 });
 

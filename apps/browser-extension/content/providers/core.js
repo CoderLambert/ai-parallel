@@ -233,6 +233,9 @@
       },
       newChat(rootDocument = document) {
         return newChat(adapter, rootDocument);
+      },
+      healthCheck(rootDocument = document) {
+        return Boolean(queryFirstVisible(adapter.editorSelectors, isUsableEditor, rootDocument));
       }
     };
     adapters[config.id] = Object.freeze(adapter);

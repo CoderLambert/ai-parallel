@@ -6,6 +6,8 @@ AI Parallel v2 uses a live iframe workspace instead of mirroring model responses
 
 ```text
 Workspace extension page
+  ├─ Provider Task Runtime
+  │    └─ Provider Adapter Contract → shared iframe/tab transport
   ├─ ChatGPT iframe
   ├─ DeepSeek iframe
   ├─ 智谱 iframe

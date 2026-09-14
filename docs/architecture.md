@@ -50,8 +50,10 @@ authenticated real-time channel is not reliable in an extension iframe.
 
 ```text
 workspace/workspace.js
-  ├─ postMessage ─ provider iframe
-  └─ runtime message ─ service worker ─ tabs.sendMessage ─ Grok tab
+  └─ Provider Task Runtime
+       └─ Provider Adapter
+            ├─ postMessage ─ provider iframe
+            └─ runtime message ─ service worker ─ tabs.sendMessage ─ Grok tab
                          │
                          ▼
                   content/frame-bridge.js
@@ -87,9 +89,10 @@ lives in `apps/browser-extension/shared/provider-catalog.js`. Popup, workspace,
 and service-worker entry points consume that catalog; provider selector knowledge
 remains local to each adapter.
 
-The catalog also describes the adapter contract and runtime capabilities. The
-workspace uses this metadata to select the Provider Task Runtime policy without
-duplicating provider-specific behavior.
+The catalog also provides the adapter identifier, adapter type, contract version,
+and runtime capabilities. The workspace builds the shared adapter contract from
+that metadata; the adapter delegates to one generic iframe/tab transport, so the
+Provider Task Runtime does not contain provider-specific branches.
 
 Provider adapters can grow independently without changing the workspace
 protocol.

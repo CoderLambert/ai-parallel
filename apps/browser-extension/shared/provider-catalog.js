@@ -8,7 +8,9 @@
       origins: ["https://chatgpt.com", "https://chat.openai.com"],
       mode: "iframe",
       default: true,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "chatgpt",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
@@ -19,7 +21,9 @@
       origins: ["https://chat.deepseek.com"],
       mode: "iframe",
       default: true,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "deepseek",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
@@ -30,7 +34,9 @@
       origins: ["https://chatglm.cn"],
       mode: "iframe",
       default: true,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "zhipu",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
@@ -41,7 +47,9 @@
       origins: ["https://chat.qwen.ai"],
       mode: "iframe",
       default: true,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "qwen",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
@@ -52,7 +60,9 @@
       origins: ["https://www.kimi.com", "https://kimi.com"],
       mode: "iframe",
       default: true,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "kimi",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
@@ -63,7 +73,9 @@
       origins: ["https://claude.ai"],
       mode: "iframe",
       default: false,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "claude",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
@@ -74,7 +86,9 @@
       origins: ["https://gemini.google.com"],
       mode: "iframe",
       default: false,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "gemini",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
@@ -85,7 +99,9 @@
       origins: ["https://grok.com"],
       mode: "tab",
       default: false,
-      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      adapter: "grok",
+      adapterType: "dom",
+      adapterContract: "provider-adapter-v1",
       capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     }
   ];
@@ -94,7 +110,6 @@
     ...provider,
     hosts: Object.freeze([...provider.hosts]),
     origins: Object.freeze([...provider.origins]),
-    adapter: Object.freeze({ ...provider.adapter }),
     capabilities: Object.freeze({ ...provider.capabilities })
   })));
 })();

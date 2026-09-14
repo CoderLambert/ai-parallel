@@ -1,6 +1,7 @@
 const PROVIDERS = globalThis.AIParallelProviderCatalog;
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";
+const providerAdapterContract = globalThis.AIParallelProviderAdapterContract;
 const PROMPT_LIBRARY_KEY = "promptLibrary";
 const SESSION_KEY = "workspaceSessions";
 const MAX_SESSIONS = 20;
@@ -44,6 +45,7 @@ const savePromptBtn = $("#savePromptBtn");
 const promptList = $("#promptList");
 const workspaceUtils = globalThis.AIParallelWorkspaceUtils;
 const panels = new Map();
+const providerAdapters = new Map();
 const pendingRequests = new Map();
 const responseBundles = new Map();
 const pendingCollections = new Set();
@@ -477,15 +479,68 @@ async function requestProviderMessage(providerId, type, payload = {}, timeoutMs 
   }
 }
 
+const providerTransport = Object.freeze({
+  request(provider, type, payload, { timeoutMs = 30000, signal } = {}) {
+    return requestProviderMessage(provider.id, type, payload, timeoutMs, signal);
+  },
+  async healthCheck(provider, { timeoutMs = 10000, signal } = {}) {
+    if (provider.mode === "tab") {
+      if (signal?.aborted) throw createRequestAbortError();
+      return { ok: true, providerId: provider.id, mode: provider.mode };
+    }
+
+    const ready = await waitForFrameReady(provider.id, Math.min(timeoutMs, 10000), signal);
+    return ready
+      ? { ok: true, providerId: provider.id, mode: provider.mode }
+      : {
+          ok: false,
+          error: "模型 iframe 未就绪",
+          code: "PROVIDER_NOT_READY",
+          retryable: false
+        };
+  }
+});
+
+function initializeProviderAdapters() {
+  providerAdapters.clear();
+  for (const provider of PROVIDERS) {
+    const adapter = providerAdapterContract.createProviderAdapter({
+      provider,
+      transport: providerTransport
+    });
+    if (!providerAdapterContract.validateProviderAdapter(adapter)) {
+      throw new Error(`Provider adapter contract invalid: ${provider.id}`);
+    }
+    providerAdapters.set(adapter.id, adapter);
+  }
+}
+
+initializeProviderAdapters();
+
 function runProviderTask(providerId, type, payload = {}, timeoutMs = 30000) {
   const provider = providerById(providerId);
+  const method = providerAdapterContract.operations[type];
+  const adapter = providerAdapters.get(provider?.adapter);
   return providerTaskRuntime.run({
     providerId,
     operation: type,
     timeoutMs,
     maxAttempts: provider?.capabilities?.retry === true ? 2 : 1,
     retryOn: (error) => error?.retryable === true,
-    execute: ({ signal }) => requestProviderMessage(providerId, type, payload, timeoutMs, signal)
+    execute: ({ signal, attempt }) => {
+      if (!adapter || !method) {
+        return {
+          ok: false,
+          error: `未找到 ${providerId} 的 Provider Adapter`,
+          code: "ADAPTER_MISSING",
+          retryable: false
+        };
+      }
+      const context = { signal, attempt, timeoutMs };
+      return method === "sendPrompt"
+        ? adapter[method](payload.prompt, context)
+        : adapter[method](context);
+    }
   });
 }
 
