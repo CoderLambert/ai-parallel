@@ -21,6 +21,7 @@ Workspace v2.1 supports:
 - Kimi
 - Claude (best-effort response adapter)
 - Gemini (best-effort response adapter)
+- Grok (best-effort response adapter)
 - Local Prompt Library
 - Comparison and Agent Handoff
 

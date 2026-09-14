@@ -18,7 +18,8 @@ function loadAdapters() {
     "content/providers/kimi.js",
     "content/providers/zhipu.js",
     "content/providers/claude.js",
-    "content/providers/gemini.js"
+    "content/providers/gemini.js",
+    "content/providers/grok.js"
   ]) {
     vm.runInContext(fs.readFileSync(path.join(extensionRoot, file), "utf8"), context, { filename: file });
   }
@@ -27,7 +28,7 @@ function loadAdapters() {
 
 test("all supported providers expose the adapter contract", () => {
   const adapters = loadAdapters();
-  const ids = ["chatgpt", "deepseek", "qwen", "kimi", "zhipu", "claude", "gemini"];
+  const ids = ["chatgpt", "deepseek", "qwen", "kimi", "zhipu", "claude", "gemini", "grok"];
   assert.deepEqual(Object.keys(adapters).sort(), ids.slice().sort());
   for (const id of ids) {
     assert.equal(adapters[id].id, id);

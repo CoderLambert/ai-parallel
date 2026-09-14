@@ -12,7 +12,8 @@ Workspace extension page
   ├─ Qwen iframe
   ├─ Kimi iframe
   ├─ Claude iframe
-  └─ Gemini iframe
+  ├─ Gemini iframe
+  └─ Grok iframe
         │
         ├─ content/providers/core.js shared DOM operations
         ├─ content/providers/<provider>.js provider selectors

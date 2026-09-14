@@ -5,7 +5,8 @@ const PROVIDERS = {
   qwen: { name: "Qwen", url: "https://chat.qwen.ai/" },
   kimi: { name: "Kimi", url: "https://www.kimi.com/" },
   claude: { name: "Claude", url: "https://claude.ai/new" },
-  gemini: { name: "Gemini", url: "https://gemini.google.com/app" }
+  gemini: { name: "Gemini", url: "https://gemini.google.com/app" },
+  grok: { name: "Grok", url: "https://grok.com/" }
 };
 
 const WORKSPACE_PATH = "workspace/index.html";

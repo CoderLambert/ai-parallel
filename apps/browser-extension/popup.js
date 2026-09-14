@@ -5,7 +5,8 @@ const PROVIDERS = [
   { id: "qwen", name: "Qwen", default: true },
   { id: "kimi", name: "Kimi", default: true },
   { id: "claude", name: "Claude", default: false },
-  { id: "gemini", name: "Gemini", default: false }
+  { id: "gemini", name: "Gemini", default: false },
+  { id: "grok", name: "Grok", default: false }
 ];
 
 const $ = (selector) => document.querySelector(selector);

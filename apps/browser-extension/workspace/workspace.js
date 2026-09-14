@@ -5,7 +5,8 @@ const PROVIDERS = [
   { id: "qwen", name: "Qwen", url: "https://chat.qwen.ai/", default: true },
   { id: "kimi", name: "Kimi", url: "https://www.kimi.com/", origins: ["https://www.kimi.com", "https://kimi.com"], default: true },
   { id: "claude", name: "Claude", url: "https://claude.ai/new", default: false },
-  { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", default: false }
+  { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", default: false },
+  { id: "grok", name: "Grok", url: "https://grok.com/", default: false }
 ];
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";

@@ -14,7 +14,8 @@ AI Parallel Workspace (extension page)
   ├─ Qwen iframe
   ├─ Kimi iframe
   ├─ Claude iframe
-  └─ Gemini iframe
+  ├─ Gemini iframe
+  └─ Grok iframe
         │
         └─ content/frame-bridge.js
              ├─ providers/core.js
