@@ -35,6 +35,15 @@ function loadServiceWorker() {
       windows: { async update() {} }
     }
   };
+  context.importScripts = (...files) => {
+    for (const file of files) {
+      vm.runInContext(
+        fs.readFileSync(path.join(__dirname, "..", "apps", "browser-extension", file), "utf8"),
+        context,
+        { filename: file }
+      );
+    }
+  };
   vm.createContext(context);
   const source = fs.readFileSync(
     path.join(__dirname, "..", "apps", "browser-extension", "service-worker.js"),

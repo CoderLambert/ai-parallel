@@ -73,6 +73,11 @@ validates the message boundary and delegates to the selected adapter. The
 workspace only knows provider identity, URL, layout, and readiness state; it
 never knows response selectors.
 
+Shared provider identity, URL, host, origin, mode, and default-selection metadata
+lives in `apps/browser-extension/shared/provider-catalog.js`. Popup, workspace,
+and service-worker entry points consume that catalog; provider selector knowledge
+remains local to each adapter.
+
 Provider adapters can grow independently without changing the workspace
 protocol.
 

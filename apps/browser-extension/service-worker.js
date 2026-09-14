@@ -1,12 +1,10 @@
+importScripts("shared/provider-catalog.js");
+
 const PROVIDERS = {
-  chatgpt: { name: "ChatGPT", url: "https://chatgpt.com/" },
-  deepseek: { name: "DeepSeek", url: "https://chat.deepseek.com/" },
-  zhipu: { name: "智谱清言", url: "https://chatglm.cn/" },
-  qwen: { name: "Qwen", url: "https://chat.qwen.ai/" },
-  kimi: { name: "Kimi", url: "https://www.kimi.com/" },
-  claude: { name: "Claude", url: "https://claude.ai/new" },
-  gemini: { name: "Gemini", url: "https://gemini.google.com/app" },
-  grok: { name: "Grok", url: "https://grok.com/", tabMode: true, hosts: ["grok.com", "www.grok.com"] }
+  ...Object.fromEntries(globalThis.AIParallelProviderCatalog.map((provider) => [
+    provider.id,
+    { ...provider, tabMode: provider.mode === "tab" }
+  ]))
 };
 
 const PROVIDER_AUTH_HOSTS = {

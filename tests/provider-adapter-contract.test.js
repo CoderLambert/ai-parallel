@@ -10,6 +10,9 @@ function loadAdapters() {
   const context = { console, setTimeout, clearTimeout, URL };
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(extensionRoot, "shared/provider-catalog.js"), "utf8"), context, {
+    filename: "shared/provider-catalog.js"
+  });
   for (const file of [
     "content/providers/core.js",
     "content/providers/chatgpt.js",
@@ -23,11 +26,14 @@ function loadAdapters() {
   ]) {
     vm.runInContext(fs.readFileSync(path.join(extensionRoot, file), "utf8"), context, { filename: file });
   }
-  return context.AIParallelProviderAdapters;
+  return {
+    adapters: context.AIParallelProviderAdapters,
+    catalog: context.AIParallelProviderCatalog
+  };
 }
 
 test("all supported providers expose the adapter contract", () => {
-  const adapters = loadAdapters();
+  const { adapters } = loadAdapters();
   const ids = ["chatgpt", "deepseek", "qwen", "kimi", "zhipu", "claude", "gemini", "grok"];
   assert.deepEqual(Object.keys(adapters).sort(), ids.slice().sort());
   for (const id of ids) {
@@ -41,8 +47,15 @@ test("all supported providers expose the adapter contract", () => {
   }
 });
 
+test("provider adapters use the shared provider host catalog", () => {
+  const { adapters, catalog } = loadAdapters();
+  for (const provider of catalog) {
+    assert.deepEqual(adapters[provider.id].hosts, provider.hosts, provider.id);
+  }
+});
+
 test("Grok recognizes iframe-only authentication routes", () => {
-  const grok = loadAdapters().grok;
+  const grok = loadAdapters().adapters.grok;
   assert.equal(grok.isExternalAuthUrl("https://accounts.x.ai/check-login?redirect=grok-com"), true);
   assert.equal(grok.isExternalAuthUrl("https://grok.com/sign-in?return_to=%2F"), true);
   assert.equal(grok.isExternalAuthUrl("/login"), true);

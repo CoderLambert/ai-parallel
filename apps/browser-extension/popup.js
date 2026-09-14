@@ -1,13 +1,4 @@
-const PROVIDERS = [
-  { id: "chatgpt", name: "ChatGPT", default: true },
-  { id: "deepseek", name: "DeepSeek", default: true },
-  { id: "zhipu", name: "智谱清言", default: true },
-  { id: "qwen", name: "Qwen", default: true },
-  { id: "kimi", name: "Kimi", default: true },
-  { id: "claude", name: "Claude", default: false },
-  { id: "gemini", name: "Gemini", default: false },
-  { id: "grok", name: "Grok", default: false }
-];
+const PROVIDERS = globalThis.AIParallelProviderCatalog;
 
 const $ = (selector) => document.querySelector(selector);
 const providerGrid = $("#providerGrid");
