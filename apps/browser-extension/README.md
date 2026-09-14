@@ -31,8 +31,9 @@ not inject provider HTML or replace the native iframe view.
 Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this directory.
 
 Grok authentication is intentionally completed in a top-level browser tab because
-`accounts.x.ai` does not permit login inside an iframe. Use **登录 ↗** in the Grok
-panel, finish signing in, return to the workspace, and reload the Grok panel.
+`accounts.x.ai` does not permit login inside an iframe. Grok `/sign-in` links are
+redirected to a top-level tab automatically; alternatively use **登录 ↗** in the
+Grok panel. Finish signing in, return to the workspace, and reload the Grok panel.
 
 ## Security boundary
 

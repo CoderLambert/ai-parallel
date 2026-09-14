@@ -1,8 +1,22 @@
 (() => {
   const { createProviderAdapter } = globalThis.AIParallelProviderCore;
-  createProviderAdapter({
+
+  function isExternalAuthUrl(value) {
+    let targetUrl;
+    try {
+      targetUrl = new URL(value, "https://grok.com/");
+    } catch {
+      return false;
+    }
+    if (targetUrl.hostname === "accounts.x.ai") return true;
+    return ["grok.com", "www.grok.com"].includes(targetUrl.hostname)
+      && /^\/(?:sign-in|login)(?:\/|$)/.test(targetUrl.pathname);
+  }
+
+  const adapter = createProviderAdapter({
     id: "grok",
     hosts: ["grok.com"],
+    isExternalAuthUrl,
     editorSelectors: [
       "textarea[aria-label='Ask Grok anything']",
       "textarea[placeholder*='Ask']",
@@ -33,6 +47,7 @@
   });
 
   if (typeof document === "undefined" || typeof chrome === "undefined") return;
+  if (window.top === window) return;
 
   document.addEventListener("click", (event) => {
     const link = event.target?.closest?.("a[href]");
@@ -44,10 +59,15 @@
     } catch {
       return;
     }
-    if (targetUrl.hostname !== "accounts.x.ai") return;
+    if (!adapter.isExternalAuthUrl(targetUrl.href)) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
+    window.parent.postMessage({
+      context: "ai-parallel-workspace",
+      providerId: "grok",
+      type: "AI_PARALLEL_AUTH_REQUIRED"
+    }, new URL(chrome.runtime.getURL("/")).origin);
     chrome.runtime.sendMessage({
       type: "OPEN_PROVIDER_AUTH",
       providerId: "grok",

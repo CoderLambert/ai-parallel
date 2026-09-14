@@ -7,7 +7,7 @@ const vm = require("node:vm");
 const extensionRoot = path.join(__dirname, "..", "apps", "browser-extension");
 
 function loadAdapters() {
-  const context = { console, setTimeout, clearTimeout };
+  const context = { console, setTimeout, clearTimeout, URL };
   context.globalThis = context;
   vm.createContext(context);
   for (const file of [
@@ -39,4 +39,13 @@ test("all supported providers expose the adapter contract", () => {
     assert.equal(typeof adapters[id].collectResponse, "function");
     assert.equal(typeof adapters[id].newChat, "function");
   }
+});
+
+test("Grok recognizes iframe-only authentication routes", () => {
+  const grok = loadAdapters().grok;
+  assert.equal(grok.isExternalAuthUrl("https://accounts.x.ai/check-login?redirect=grok-com"), true);
+  assert.equal(grok.isExternalAuthUrl("https://grok.com/sign-in?return_to=%2F"), true);
+  assert.equal(grok.isExternalAuthUrl("/login"), true);
+  assert.equal(grok.isExternalAuthUrl("https://grok.com/"), false);
+  assert.equal(grok.isExternalAuthUrl("https://example.com/sign-in"), false);
 });

@@ -221,6 +221,11 @@ window.addEventListener("message", (event) => {
     return;
   }
 
+  if (event.data.type === "AI_PARALLEL_AUTH_REQUIRED") {
+    setPanelState(providerId, "已在新标签页打开登录；完成后点击 ↻", { ready: false });
+    return;
+  }
+
   if (event.data.type === "AI_PARALLEL_SEND_RESULT") {
     const requestId = String(event.data.requestId || "");
     const pending = pendingRequests.get(requestId);
