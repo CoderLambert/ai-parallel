@@ -33,6 +33,7 @@ const workspaceUtils = globalThis.AIParallelWorkspaceUtils;
 const panels = new Map();
 const pendingRequests = new Map();
 const responseBundles = new Map();
+const pendingCollections = new Set();
 let promptLibraryEntries = [];
 let selected = new Set();
 let currentLayout = "auto";
@@ -444,11 +445,53 @@ function renderResponses() {
     } else {
       const error = document.createElement("div");
       error.className = "response-card-error";
-      error.textContent = result?.error || "未收集到回答";
+      const message = document.createElement("span");
+      message.textContent = result?.error || "未收集到回答";
+      error.append(message);
+
+      const retryButton = document.createElement("button");
+      retryButton.type = "button";
+      retryButton.className = "drawer-btn response-retry-btn";
+      retryButton.textContent = pendingCollections.has(providerId) ? "重试中…" : "重试";
+      retryButton.disabled = pendingCollections.has(providerId);
+      retryButton.setAttribute("aria-label", `重试收集 ${providerName(providerId)} 回答`);
+      retryButton.addEventListener("click", () => retryResponse(providerId));
+      error.append(retryButton);
       card.append(error);
     }
     responseList.append(card);
   }
+}
+
+async function collectResponseSafely(providerId) {
+  pendingCollections.add(providerId);
+  try {
+    return await collectResponseFromProvider(providerId);
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    pendingCollections.delete(providerId);
+  }
+}
+
+async function retryResponse(providerId) {
+  if (!selected.has(providerId) || pendingCollections.has(providerId)) return;
+
+  responseBundles.set(providerId, { ok: false, error: "正在重试…" });
+  renderResponses();
+  compareStatus.textContent = `正在重试收集 ${providerName(providerId)}…`;
+
+  const result = await collectResponseSafely(providerId);
+  if (!selected.has(providerId)) return;
+
+  responseBundles.set(providerId, result);
+  compareStatus.textContent = result.ok
+    ? `${providerName(providerId)} 已重新收集`
+    : `${providerName(providerId)} 重试失败，可再次尝试`;
+  renderResponses();
 }
 
 async function collectResponses() {
@@ -465,7 +508,7 @@ async function collectResponses() {
   try {
     const pairs = await Promise.all([...selected].map(async (providerId) => [
       providerId,
-      await collectResponseFromProvider(providerId)
+      await collectResponseSafely(providerId)
     ]));
     for (const [providerId, result] of pairs) responseBundles.set(providerId, result);
     const count = pairs.filter(([, result]) => result.ok).length;
