@@ -21,3 +21,11 @@ jobs:
 
       - name: Syntax checks
         run: npm run check
+
+      - name: Tests
+        run: npm test
+
+      - name: Validate extension metadata
+        run: |
+          jq empty apps/browser-extension/manifest.json
+          jq empty apps/browser-extension/rules/bypass-headers.json

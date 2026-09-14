@@ -26,9 +26,14 @@ The original provider page remains visible directly. Compare can collect the
 latest visible response on demand for safe text rendering and export; it does
 not inject provider HTML or replace the native iframe view.
 
-## Install
+## Install from a release
 
-Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this directory.
+Download and extract `ai-parallel-browser-extension-vX.Y.Z.zip`. Open
+`chrome://extensions` or `edge://extensions`, enable Developer mode, choose
+**Load unpacked**, and select the extracted `ai-parallel-browser-extension`
+directory. Keep that directory in place after installation.
+
+When loading from a source checkout, select `apps/browser-extension` directly.
 
 Grok authentication and chat run in a top-level browser tab because `accounts.x.ai`
 does not permit iframe login and Grok's real-time WebSocket is not iframe-safe. AI

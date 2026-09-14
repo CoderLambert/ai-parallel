@@ -3,6 +3,7 @@
   "name": "AI Parallel",
   "version": "2.1.4",
   "description": "Compare multiple AI web chats side by side in one live workspace.",
+  "homepage_url": "https://github.com/CoderLambert/ai-parallel",
   "minimum_chrome_version": "120",
   "permissions": [
     "storage",
