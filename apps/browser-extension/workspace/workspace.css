@@ -53,6 +53,8 @@ body { overflow: hidden; }
 .provider-name { font-size: 11px; font-weight: 700; white-space: nowrap; }
 .provider-state { min-width: 0; color: var(--subtle); font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .panel-actions { display: flex; gap: 4px; }
+.panel-auth-btn { height: 24px; border: 1px solid var(--border-strong); border-radius: 6px; padding: 0 7px; background: #191c23; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 700; }
+.panel-auth-btn:hover { border-color: var(--accent); color: var(--text); }
 .panel-btn { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--subtle); cursor: pointer; }
 .panel-btn:hover { background: var(--surface-2); color: var(--text); }
 .frame-wrap { position: relative; min-height: 0; background: white; }

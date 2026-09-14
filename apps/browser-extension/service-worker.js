@@ -9,6 +9,10 @@ const PROVIDERS = {
   grok: { name: "Grok", url: "https://grok.com/" }
 };
 
+const PROVIDER_AUTH_HOSTS = {
+  grok: new Set(["grok.com", "www.grok.com", "accounts.x.ai"])
+};
+
 const WORKSPACE_PATH = "workspace/index.html";
 
 async function ensureWorkspace() {
@@ -59,6 +63,25 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return;
       }
       const tab = await chrome.tabs.create({ url: provider.url, active: true });
+      sendResponse({ ok: true, tabId: tab.id });
+      return;
+    }
+
+    if (message.type === "OPEN_PROVIDER_AUTH") {
+      const providerId = String(message.providerId || "");
+      const allowedHosts = PROVIDER_AUTH_HOSTS[providerId];
+      let authUrl;
+      try {
+        authUrl = new URL(String(message.url || ""));
+      } catch {
+        sendResponse({ ok: false, error: "Invalid authentication URL" });
+        return;
+      }
+      if (authUrl.protocol !== "https:" || !allowedHosts?.has(authUrl.hostname)) {
+        sendResponse({ ok: false, error: "Authentication URL is not allowed" });
+        return;
+      }
+      const tab = await chrome.tabs.create({ url: authUrl.href, active: true });
       sendResponse({ ok: true, tabId: tab.id });
       return;
     }

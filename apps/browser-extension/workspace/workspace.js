@@ -6,7 +6,7 @@ const PROVIDERS = [
   { id: "kimi", name: "Kimi", url: "https://www.kimi.com/", origins: ["https://www.kimi.com", "https://kimi.com"], default: true },
   { id: "claude", name: "Claude", url: "https://claude.ai/new", default: false },
   { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", default: false },
-  { id: "grok", name: "Grok", url: "https://grok.com/", default: false }
+  { id: "grok", name: "Grok", url: "https://grok.com/", loginUrl: "https://grok.com/", default: false }
 ];
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";
@@ -123,6 +123,25 @@ function ensurePanel(provider) {
   panel.querySelector(".provider-name").textContent = provider.name;
   iframe.src = provider.url;
   iframe.title = provider.name;
+
+  const authButton = panel.querySelector(".auth-btn");
+  if (provider.loginUrl) {
+    authButton.hidden = false;
+    authButton.title = `在独立标签页登录 ${provider.name}`;
+    authButton.addEventListener("click", async () => {
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: "OPEN_PROVIDER_AUTH",
+          providerId: provider.id,
+          url: provider.loginUrl
+        });
+        if (!result?.ok) throw new Error(result?.error || "无法打开登录页面");
+        setPanelState(provider.id, "登录完成后点击 ↻ 重新加载", { ready: false });
+      } catch (error) {
+        showError(error instanceof Error ? error.message : "无法打开登录页面");
+      }
+    });
+  }
 
   iframe.addEventListener("load", () => {
     panel.dataset.loaded = "true";

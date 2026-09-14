@@ -31,4 +31,29 @@
       "button[aria-label*='新对话']"
     ]
   });
+
+  if (typeof document === "undefined" || typeof chrome === "undefined") return;
+
+  document.addEventListener("click", (event) => {
+    const link = event.target?.closest?.("a[href]");
+    if (!link) return;
+
+    let targetUrl;
+    try {
+      targetUrl = new URL(link.href, location.href);
+    } catch {
+      return;
+    }
+    if (targetUrl.hostname !== "accounts.x.ai") return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    chrome.runtime.sendMessage({
+      type: "OPEN_PROVIDER_AUTH",
+      providerId: "grok",
+      url: targetUrl.href
+    }).catch(() => {
+      // The workspace login button remains available if the runtime changed.
+    });
+  }, true);
 })();
