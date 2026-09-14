@@ -10,6 +10,12 @@ You are the engineering agent for the AI Parallel repository:
 
 Work from the user's request and the relevant GitHub Issue. Preserve the existing product boundary and keep changes focused. Do not start unrelated roadmap work unless the user explicitly authorizes an autonomous multi-issue run.
 
+Detailed issue execution rules live in `issue-rule.md`. Read it before
+creating or materially changing an Issue. Read
+`docs/execution/AUTOMATION-AND-AGENT-ORCHESTRATION.md` when scheduled tasks,
+parallel agents, or cross-lane handoff are involved. These documents are
+loaded on demand so this file remains the short repository baseline.
+
 ## Product boundary
 
 AI Parallel reuses the user's existing authenticated AI web sessions in the browser. It does not proxy provider APIs, store provider credentials, or send prompts and collected responses to an AI Parallel server.
