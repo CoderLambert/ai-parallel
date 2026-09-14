@@ -345,17 +345,32 @@ async function requestProviderMessage(providerId, type, payload = {}, timeoutMs 
   if (provider?.mode !== "tab") return requestFrameMessage(providerId, type, payload, timeoutMs);
 
   const requestId = crypto.randomUUID();
+  const timeoutMarker = Symbol("provider-request-timeout");
+  let timer;
   try {
-    const result = await chrome.runtime.sendMessage({
-      type: "PROVIDER_TAB_COMMAND",
-      providerId,
-      command: { type, requestId, ...payload }
-    });
+    const result = await Promise.race([
+      chrome.runtime.sendMessage({
+        type: "PROVIDER_TAB_COMMAND",
+        providerId,
+        command: { type, requestId, ...payload }
+      }),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(timeoutMarker), timeoutMs);
+      })
+    ]);
+    if (result === timeoutMarker) {
+      return {
+        ok: false,
+        error: type === "AI_PARALLEL_SEND" ? "发送超时；请在该面板中手动确认" : "请求超时"
+      };
+    }
     return result?.ok === true
       ? result
       : { ok: false, error: result?.error || "独立标签页命令执行失败" };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
