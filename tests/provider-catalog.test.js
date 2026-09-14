@@ -40,6 +40,15 @@ test("shared provider catalog matches manifest host coverage", () => {
       assert.ok(contentScriptMatches.has(match), `${provider.id} missing content-script match ${match}`);
     }
     assert.equal(new URL(provider.url).origin, provider.origins[0]);
+    assert.equal(provider.adapter.type, "dom");
+    assert.equal(provider.adapter.contract, "provider-adapter-v1");
+    assert.equal(provider.capabilities.send, true);
+    assert.equal(provider.capabilities.collect, true);
+    assert.equal(provider.capabilities.newChat, true);
+    assert.equal(provider.capabilities.retry, true);
+    assert.equal(provider.capabilities.streaming, false);
+    assert.equal(provider.capabilities.timeout, true);
+    assert.equal(provider.capabilities.cancel, true);
   }
 });
 
@@ -49,6 +58,8 @@ test("shared provider catalog protects metadata arrays from mutation", () => {
   assert.equal(Object.isFrozen(catalog[0]), true);
   assert.equal(Object.isFrozen(catalog[0].hosts), true);
   assert.equal(Object.isFrozen(catalog[0].origins), true);
+  assert.equal(Object.isFrozen(catalog[0].adapter), true);
+  assert.equal(Object.isFrozen(catalog[0].capabilities), true);
 });
 
 test("extension entry points load the catalog before consuming it", () => {
@@ -58,5 +69,6 @@ test("extension entry points load the catalog before consuming it", () => {
 
   assert.match(popupHtml, /shared\/provider-catalog\.js[\s\S]*popup\.js/);
   assert.match(workspaceHtml, /\.\.\/shared\/provider-catalog\.js[\s\S]*workspace\.js/);
+  assert.match(workspaceHtml, /\.\.\/shared\/provider-task-runtime\.js[\s\S]*workspace\.js/);
   assert.match(serviceWorker, /^importScripts\("shared\/provider-catalog\.js"\);/);
 });

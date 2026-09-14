@@ -8,6 +8,9 @@ AI Parallel is a multi-model comparison workspace. The browser extension reuses 
 
 ```text
 AI Parallel Workspace (extension page)
+  ├─ Provider Task Runtime
+  │    ├─ bounded retry / timeout / cancel
+  │    └─ in-memory task state and observation
   ├─ ChatGPT iframe
   ├─ DeepSeek iframe
   ├─ 智谱 iframe
@@ -65,6 +68,12 @@ validates both iframe source and provider origin. For Grok only, the service
 worker finds or creates an allowlisted `grok.com` tab and routes provider-scoped
 commands to the same adapter contract. It never receives provider credentials.
 
+All workspace provider operations are represented by an in-memory Provider Task.
+Tasks expose `IDLE`, `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `TIMEOUT`, and
+`CANCELLED` states. Retry attempts are bounded by the provider capability contract;
+only explicitly retryable transport or timeout failures are retried. Task history
+and response snapshots are not written to extension storage.
+
 ## Provider boundaries
 
 Provider-specific DOM knowledge is isolated in `content/providers/<provider>.js`,
@@ -77,6 +86,10 @@ Shared provider identity, URL, host, origin, mode, and default-selection metadat
 lives in `apps/browser-extension/shared/provider-catalog.js`. Popup, workspace,
 and service-worker entry points consume that catalog; provider selector knowledge
 remains local to each adapter.
+
+The catalog also describes the adapter contract and runtime capabilities. The
+workspace uses this metadata to select the Provider Task Runtime policy without
+duplicating provider-specific behavior.
 
 Provider adapters can grow independently without changing the workspace
 protocol.

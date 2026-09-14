@@ -4,6 +4,10 @@ const MESSAGE_CONTEXT = "ai-parallel-workspace";
 const PROMPT_LIBRARY_KEY = "promptLibrary";
 const SESSION_KEY = "workspaceSessions";
 const MAX_SESSIONS = 20;
+const providerTaskRuntime = globalThis.AIParallelProviderTaskRuntime.createProviderTaskRuntime({
+  defaultTimeoutMs: 30000,
+  defaultMaxAttempts: 1
+});
 const $ = (selector) => document.querySelector(selector);
 const providerBar = $("#providerBar");
 const panelGrid = $("#panelGrid");
@@ -75,6 +79,19 @@ function setPanelState(providerId, state, { ready } = {}) {
   if (typeof ready === "boolean") panel.dataset.ready = String(ready);
   panel.querySelector(".provider-state").textContent = state;
 }
+
+providerTaskRuntime.subscribe((task) => {
+  if (!panels.has(task.providerId)) return;
+  if (task.status === "QUEUED") {
+    setPanelState(task.providerId, `Queued… (${Math.min(task.attempt + 1, task.maxAttempts)}/${task.maxAttempts})`);
+  } else if (task.status === "RUNNING") {
+    setPanelState(task.providerId, `Running… (${task.attempt}/${task.maxAttempts})`);
+  } else if (task.status === "TIMEOUT") {
+    setPanelState(task.providerId, "Timeout");
+  } else if (task.status === "CANCELLED") {
+    setPanelState(task.providerId, "Cancelled");
+  }
+});
 
 function renderProviderBar() {
   providerBar.replaceChildren();
@@ -222,10 +239,18 @@ function renderPanels() {
 function cancelPendingRequests(providerId, error) {
   for (const [requestId, pending] of pendingRequests) {
     if (pending.providerId !== providerId) continue;
-    clearTimeout(pending.timer);
-    pendingRequests.delete(requestId);
-    pending.resolve({ ok: false, error });
+    settlePendingRequest(requestId, { ok: false, error, code: "PANEL_CLOSED", retryable: false });
   }
+}
+
+function settlePendingRequest(requestId, result) {
+  const pending = pendingRequests.get(requestId);
+  if (!pending) return false;
+  clearTimeout(pending.timer);
+  pendingRequests.delete(requestId);
+  pending.cleanup?.();
+  pending.resolve(result);
+  return true;
 }
 
 function findProviderForMessage(event) {
@@ -258,11 +283,11 @@ window.addEventListener("message", (event) => {
     const requestId = String(event.data.requestId || "");
     const pending = pendingRequests.get(requestId);
     if (!pending || pending.providerId !== providerId) return;
-    clearTimeout(pending.timer);
-    pendingRequests.delete(requestId);
-    pending.resolve({
+    settlePendingRequest(requestId, {
       ok: event.data.ok === true,
-      error: event.data.ok === true ? "" : String(event.data.error || "发送失败")
+      error: event.data.ok === true ? "" : String(event.data.error || "发送失败"),
+      code: event.data.ok === true ? undefined : "PROVIDER_FAILURE",
+      retryable: false
     });
     return;
   }
@@ -271,12 +296,12 @@ window.addEventListener("message", (event) => {
     const requestId = String(event.data.requestId || "");
     const pending = pendingRequests.get(requestId);
     if (!pending || pending.providerId !== providerId) return;
-    clearTimeout(pending.timer);
-    pendingRequests.delete(requestId);
-    pending.resolve({
+    settlePendingRequest(requestId, {
       ok: event.data.ok === true,
       response: event.data.ok === true ? event.data.response : null,
-      error: event.data.ok === true ? "" : String(event.data.error || "未找到模型回答")
+      error: event.data.ok === true ? "" : String(event.data.error || "未找到模型回答"),
+      code: event.data.ok === true ? undefined : "PROVIDER_FAILURE",
+      retryable: false
     });
     return;
   }
@@ -285,68 +310,126 @@ window.addEventListener("message", (event) => {
     const requestId = String(event.data.requestId || "");
     const pending = pendingRequests.get(requestId);
     if (!pending || pending.providerId !== providerId) return;
-    clearTimeout(pending.timer);
-    pendingRequests.delete(requestId);
-    pending.resolve({
+    settlePendingRequest(requestId, {
       ok: event.data.ok === true,
-      error: event.data.ok === true ? "" : String(event.data.error || "无法新建对话")
+      error: event.data.ok === true ? "" : String(event.data.error || "无法新建对话"),
+      code: event.data.ok === true ? undefined : "PROVIDER_FAILURE",
+      retryable: false
     });
   }
 });
 
-function waitForFrameReady(providerId, timeoutMs = 10000) {
+function createRequestAbortError(reason = "Provider task cancelled") {
+  const error = new Error(reason);
+  error.name = "AbortError";
+  error.code = "TASK_CANCELLED";
+  return error;
+}
+
+function waitForFrameReady(providerId, timeoutMs = 10000, signal) {
   const started = Date.now();
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    let pollTimer;
+    let settled = false;
+    const cleanup = () => {
+      clearTimeout(pollTimer);
+      signal?.removeEventListener("abort", onAbort);
+    };
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(value);
+    };
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(createRequestAbortError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) return onAbort();
+
     const poll = () => {
       const panel = panels.get(providerId);
-      if (!panel) return resolve(false);
-      if (panel.dataset.ready === "true") return resolve(true);
-      if (Date.now() - started >= timeoutMs) return resolve(false);
+      if (!panel) return finish(false);
+      if (panel.dataset.ready === "true") return finish(true);
+      if (Date.now() - started >= timeoutMs) return finish(false);
       pingFrame(providerId);
-      setTimeout(poll, 250);
+      pollTimer = setTimeout(poll, 250);
     };
     poll();
   });
 }
 
-async function requestFrameMessage(providerId, type, payload = {}, timeoutMs = 30000) {
-  const ready = await waitForFrameReady(providerId);
+async function requestFrameMessage(providerId, type, payload = {}, timeoutMs = 30000, signal) {
+  const ready = await waitForFrameReady(providerId, Math.min(timeoutMs, 10000), signal);
   if (!ready) {
     return {
       ok: false,
-      error: runtimeUpgradeWarning || "模型 iframe 未就绪；如果刚升级扩展，请先在 chrome://extensions 点击 Reload"
+      error: runtimeUpgradeWarning || "模型 iframe 未就绪；如果刚升级扩展，请先在 chrome://extensions 点击 Reload",
+      code: "PROVIDER_NOT_READY",
+      retryable: false
     };
   }
 
   const requestId = crypto.randomUUID();
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      pendingRequests.delete(requestId);
-      resolve({ ok: false, error: type === "AI_PARALLEL_SEND" ? "发送超时；请在该面板中手动确认" : "请求超时" });
-    }, timeoutMs);
-
-    pendingRequests.set(requestId, { providerId, resolve, timer });
-    const posted = postToFrame(providerId, {
-      type,
-      requestId,
-      ...payload
-    });
-
-    if (!posted) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const onAbort = () => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       pendingRequests.delete(requestId);
-      resolve({ ok: false, error: "模型 iframe 不存在" });
+      cleanup();
+      reject(createRequestAbortError());
+    };
+    const cleanup = () => signal?.removeEventListener("abort", onAbort);
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish({
+      ok: false,
+      error: type === "AI_PARALLEL_SEND" ? "发送超时；请在该面板中手动确认" : "请求超时",
+      code: "REQUEST_TIMEOUT",
+      retryable: true
+    }), timeoutMs + 250);
+
+    pendingRequests.set(requestId, { providerId, resolve: finish, timer, cleanup });
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) return onAbort();
+
+    try {
+      const posted = postToFrame(providerId, {
+        type,
+        requestId,
+        ...payload
+      });
+
+      if (!posted) finish({ ok: false, error: "模型 iframe 不存在", code: "FRAME_MISSING", retryable: false });
+    } catch (error) {
+      finish({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        code: "FRAME_DISPATCH_FAILED",
+        retryable: true
+      });
     }
   });
 }
 
-async function requestProviderMessage(providerId, type, payload = {}, timeoutMs = 30000) {
+async function requestProviderMessage(providerId, type, payload = {}, timeoutMs = 30000, signal) {
   const provider = providerById(providerId);
-  if (provider?.mode !== "tab") return requestFrameMessage(providerId, type, payload, timeoutMs);
+  if (provider?.mode !== "tab") return requestFrameMessage(providerId, type, payload, timeoutMs, signal);
 
   const requestId = crypto.randomUUID();
   const timeoutMarker = Symbol("provider-request-timeout");
+  const abortMarker = Symbol("provider-request-abort");
   let timer;
+  let abortListener;
   try {
     const result = await Promise.race([
       chrome.runtime.sendMessage({
@@ -355,31 +438,63 @@ async function requestProviderMessage(providerId, type, payload = {}, timeoutMs 
         command: { type, requestId, ...payload }
       }),
       new Promise((resolve) => {
-        timer = setTimeout(() => resolve(timeoutMarker), timeoutMs);
+        timer = setTimeout(() => resolve(timeoutMarker), timeoutMs + 250);
+      }),
+      new Promise((resolve) => {
+        abortListener = () => resolve(abortMarker);
+        signal?.addEventListener("abort", abortListener, { once: true });
+        if (signal?.aborted) resolve(abortMarker);
       })
     ]);
+    if (result === abortMarker) throw createRequestAbortError();
     if (result === timeoutMarker) {
       return {
         ok: false,
-        error: type === "AI_PARALLEL_SEND" ? "发送超时；请在该面板中手动确认" : "请求超时"
+        error: type === "AI_PARALLEL_SEND" ? "发送超时；请在该面板中手动确认" : "请求超时",
+        code: "REQUEST_TIMEOUT",
+        retryable: true
       };
     }
     return result?.ok === true
       ? result
-      : { ok: false, error: result?.error || "独立标签页命令执行失败" };
+      : {
+          ok: false,
+          error: result?.error || "独立标签页命令执行失败",
+          code: "PROVIDER_FAILURE",
+          retryable: false
+        };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    if (error?.code === "TASK_CANCELLED") throw error;
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      code: "TRANSPORT_ERROR",
+      retryable: true
+    };
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", abortListener);
   }
 }
 
+function runProviderTask(providerId, type, payload = {}, timeoutMs = 30000) {
+  const provider = providerById(providerId);
+  return providerTaskRuntime.run({
+    providerId,
+    operation: type,
+    timeoutMs,
+    maxAttempts: provider?.capabilities?.retry === true ? 2 : 1,
+    retryOn: (error) => error?.retryable === true,
+    execute: ({ signal }) => requestProviderMessage(providerId, type, payload, timeoutMs, signal)
+  });
+}
+
 function sendPromptToProvider(providerId, prompt) {
-  return requestProviderMessage(providerId, "AI_PARALLEL_SEND", { prompt });
+  return runProviderTask(providerId, "AI_PARALLEL_SEND", { prompt });
 }
 
 function collectResponseFromProvider(providerId) {
-  return requestProviderMessage(providerId, "AI_PARALLEL_COLLECT_RESPONSE", {}, 12000);
+  return runProviderTask(providerId, "AI_PARALLEL_COLLECT_RESPONSE", {}, 12000);
 }
 
 async function dispatchPrompt() {
@@ -408,7 +523,7 @@ async function dispatchPrompt() {
         setPanelState(providerId, "Sent", { ready: true });
       } else {
         failures += 1;
-        setPanelState(providerId, result.error || "发送失败");
+        setPanelState(providerId, providerTaskState(result, "发送失败"));
       }
     }
 
@@ -425,6 +540,12 @@ async function dispatchPrompt() {
 
 function providerName(providerId) {
   return providerById(providerId)?.name || providerId;
+}
+
+function providerTaskState(result, fallback) {
+  if (result?.status === "TIMEOUT") return `Timeout · ${result.error || fallback}`;
+  if (result?.status === "CANCELLED") return `Cancelled · ${result.error || fallback}`;
+  return result?.error || fallback;
 }
 
 function formatResponseTime(timestamp) {

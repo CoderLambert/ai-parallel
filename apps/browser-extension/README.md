@@ -26,6 +26,11 @@ The original provider page remains visible directly. Compare can collect the
 latest visible response on demand for safe text rendering and export; it does
 not inject provider HTML or replace the native iframe view.
 
+Workspace provider operations run through the shared Provider Task Runtime. It
+tracks each operation in memory, bounds retry attempts, exposes timeout and
+cancellation states, and keeps deterministic provider failures visible. Task
+history and response snapshots are not persisted.
+
 ## Install from a release
 
 Download and extract `ai-parallel-browser-extension-vX.Y.Z.zip`. Open

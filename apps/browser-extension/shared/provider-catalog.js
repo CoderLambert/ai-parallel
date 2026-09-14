@@ -7,7 +7,9 @@
       hosts: ["chatgpt.com", "chat.openai.com"],
       origins: ["https://chatgpt.com", "https://chat.openai.com"],
       mode: "iframe",
-      default: true
+      default: true,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
       id: "deepseek",
@@ -16,7 +18,9 @@
       hosts: ["chat.deepseek.com"],
       origins: ["https://chat.deepseek.com"],
       mode: "iframe",
-      default: true
+      default: true,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
       id: "zhipu",
@@ -25,7 +29,9 @@
       hosts: ["chatglm.cn"],
       origins: ["https://chatglm.cn"],
       mode: "iframe",
-      default: true
+      default: true,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
       id: "qwen",
@@ -34,7 +40,9 @@
       hosts: ["chat.qwen.ai"],
       origins: ["https://chat.qwen.ai"],
       mode: "iframe",
-      default: true
+      default: true,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
       id: "kimi",
@@ -43,7 +51,9 @@
       hosts: ["www.kimi.com", "kimi.com"],
       origins: ["https://www.kimi.com", "https://kimi.com"],
       mode: "iframe",
-      default: true
+      default: true,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
       id: "claude",
@@ -52,7 +62,9 @@
       hosts: ["claude.ai"],
       origins: ["https://claude.ai"],
       mode: "iframe",
-      default: false
+      default: false,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
       id: "gemini",
@@ -61,7 +73,9 @@
       hosts: ["gemini.google.com"],
       origins: ["https://gemini.google.com"],
       mode: "iframe",
-      default: false
+      default: false,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     },
     {
       id: "grok",
@@ -70,13 +84,17 @@
       hosts: ["grok.com"],
       origins: ["https://grok.com"],
       mode: "tab",
-      default: false
+      default: false,
+      adapter: { type: "dom", contract: "provider-adapter-v1" },
+      capabilities: { send: true, collect: true, newChat: true, retry: true, streaming: false, timeout: true, cancel: true }
     }
   ];
 
   globalThis.AIParallelProviderCatalog = Object.freeze(providers.map((provider) => Object.freeze({
     ...provider,
     hosts: Object.freeze([...provider.hosts]),
-    origins: Object.freeze([...provider.origins])
+    origins: Object.freeze([...provider.origins]),
+    adapter: Object.freeze({ ...provider.adapter }),
+    capabilities: Object.freeze({ ...provider.capabilities })
   })));
 })();
