@@ -860,7 +860,24 @@ function buildHandoffPrompt() {
   return workspaceUtils.buildHandoffPrompt(promptInput.value.trim(), providers, responseBundles);
 }
 
+function hasSuccessfulResponseSnapshot() {
+  return [...selected].some((providerId) => {
+    const result = responseBundles.get(providerId);
+    const content = result?.response?.content || result?.response?.markdown;
+    return result?.ok === true && typeof content === "string" && content.trim().length > 0;
+  });
+}
+
 async function sendToAgent() {
+  if (!selected.size) {
+    compareStatus.textContent = "至少选择一个模型";
+    return;
+  }
+  if (!hasSuccessfulResponseSnapshot()) {
+    compareStatus.textContent = "请先点击 Compare 收集至少一个回答";
+    return;
+  }
+
   const target = handoffTarget.value;
   if (!selected.has(target)) {
     selected.add(target);
