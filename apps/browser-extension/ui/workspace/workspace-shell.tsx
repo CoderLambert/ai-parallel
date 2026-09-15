@@ -9,6 +9,7 @@ import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-
 import { PromptLibraryDrawer, type WorkspacePromptAction } from "./features/prompt-library-drawer";
 import { PromptStatus, type WorkspacePromptSummary } from "./features/prompt-status";
 import { SessionStatus, type WorkspaceSessionSummary } from "./features/session-status";
+import { TemplateLibraryDrawer, type WorkspaceTemplateAction } from "./features/template-library-drawer";
 import { TemplateStatus, type WorkspaceTemplateSummary } from "./features/template-status";
 import { WorkspaceActions, type WorkspaceAction } from "./features/workspace-actions";
 
@@ -131,6 +132,7 @@ function readTemplateSummaries(value: unknown): WorkspaceTemplateSummary[] {
       id: record.id,
       name: typeof record.name === "string" && record.name.trim() ? record.name : "Untitled Template",
       category: typeof record.category === "string" && record.category.trim() ? record.category : "未分类",
+      description: typeof record.description === "string" ? record.description : "",
       outputMode: record.outputMode === "json" ? "json" as const : "text" as const,
       version,
       source: record.source === "builtin" ? "builtin" as const : "user" as const
@@ -146,6 +148,12 @@ function emitSelection(providerIds: readonly ProviderId[]) {
 
 function emitPromptAction(action: WorkspacePromptAction) {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action", {
+    detail: action
+  }));
+}
+
+function emitTemplateAction(action: WorkspaceTemplateAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-template-action", {
     detail: action
   }));
 }
@@ -170,8 +178,9 @@ export function WorkspaceShell() {
   const [sessions, setSessions] = useState<WorkspaceSessionSummary[]>([]);
   const [prompts, setPrompts] = useState<WorkspacePromptSummary[]>([]);
   const [templates, setTemplates] = useState<WorkspaceTemplateSummary[]>([]);
-  const [promptDrawerOpen, setPromptDrawerOpen] = useState(false);
+  const [activeDrawer, setActiveDrawer] = useState<"prompt" | "template" | null>(null);
   const [promptActionStatus, setPromptActionStatus] = useState("");
+  const [templateActionStatus, setTemplateActionStatus] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -206,13 +215,20 @@ export function WorkspaceShell() {
       if (detail?.ok === true) setPromptActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
       else if (detail?.ok === false) setPromptActionStatus(typeof detail.error === "string" ? detail.error : "Prompt 操作失败");
     };
+    const handleTemplateActionResult = (event: Event) => {
+      const detail = (event as CustomEvent<{ ok?: unknown; message?: unknown; error?: unknown }>).detail;
+      if (detail?.ok === true) setTemplateActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
+      else if (detail?.ok === false) setTemplateActionStatus(typeof detail.error === "string" ? detail.error : "模板操作失败");
+    };
     window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
     window.addEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
+    window.addEventListener("ai-parallel:workspace-template-action-result", handleTemplateActionResult);
     window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state-request"));
     return () => {
       active = false;
       window.removeEventListener("ai-parallel:workspace-state", handleWorkspaceState);
       window.removeEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
+      window.removeEventListener("ai-parallel:workspace-template-action-result", handleTemplateActionResult);
     };
   }, []);
 
@@ -230,22 +246,29 @@ export function WorkspaceShell() {
   }
 
   function openWorkspaceAction(action: WorkspaceAction) {
-    if (action === "prompt") {
-      setPromptActionStatus("");
-      setPromptDrawerOpen(true);
+    if (action === "prompt" || action === "template") {
+      if (action === "prompt") setPromptActionStatus("");
+      else setTemplateActionStatus("");
+      setActiveDrawer(action);
       return;
     }
     openLegacyAction(action);
   }
 
   function openLegacyAction(action: WorkspaceAction) {
-    setPromptDrawerOpen(false);
+    setActiveDrawer(null);
     triggerLegacyAction(action);
   }
 
   function handlePromptAction(action: WorkspacePromptAction) {
     setPromptActionStatus("正在处理…");
     emitPromptAction(action);
+  }
+
+  function handleTemplateAction(action: WorkspaceTemplateAction) {
+    setTemplateActionStatus("正在处理…");
+    if (action.type === "use") setActiveDrawer(null);
+    emitTemplateAction(action);
   }
 
   return (
@@ -274,14 +297,21 @@ export function WorkspaceShell() {
       <HandoffStatus responseCount={compare.responseCount} onOpen={() => openLegacyAction("compare")} />
       <SessionStatus sessions={sessions} onOpen={() => openLegacyAction("session")} />
       <PromptStatus prompts={prompts} onOpen={() => openWorkspaceAction("prompt")} />
-      <TemplateStatus templates={templates} onOpen={() => openLegacyAction("template")} />
+      <TemplateStatus templates={templates} onOpen={() => openWorkspaceAction("template")} />
       <LibraryStatus summary={libraries} onOpen={openWorkspaceAction} />
       <PromptLibraryDrawer
-        open={promptDrawerOpen}
+        open={activeDrawer === "prompt"}
         prompts={prompts}
         status={promptActionStatus}
-        onClose={() => setPromptDrawerOpen(false)}
+        onClose={() => setActiveDrawer(null)}
         onAction={handlePromptAction}
+      />
+      <TemplateLibraryDrawer
+        open={activeDrawer === "template"}
+        templates={templates}
+        status={templateActionStatus}
+        onClose={() => setActiveDrawer(null)}
+        onAction={handleTemplateAction}
       />
     </div>
   );

@@ -5,6 +5,7 @@ export interface WorkspaceTemplateSummary {
   id: string;
   name: string;
   category: string;
+  description: string;
   outputMode: "json" | "text";
   version: number;
   source: "builtin" | "user";

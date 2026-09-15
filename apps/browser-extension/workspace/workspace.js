@@ -174,6 +174,7 @@ function workspaceTemplateState() {
       id: template.id,
       name: typeof template.name === "string" ? template.name : "Untitled Template",
       category: templateCategoryName(template.categoryId),
+      description: typeof template.description === "string" ? template.description : "",
       outputMode: template.output?.mode === "json" ? "json" : "text",
       version: Number.isFinite(template.version) ? Math.max(1, Math.floor(template.version)) : 1,
       source: template.metadata?.source === "builtin" ? "builtin" : "user"
@@ -1177,6 +1178,7 @@ function downloadJson(value, filename) {
 function downloadTemplateJson(template) {
   downloadJson(template, `${template.id.replace(/[^a-z0-9._-]/gi, "-")}.json`);
   templateLibraryStatus.textContent = `${template.name} 已导出`;
+  return templateLibraryStatus.textContent;
 }
 
 async function duplicateTemplate(template) {
@@ -1189,6 +1191,7 @@ async function duplicateTemplate(template) {
   await persistUserTemplates();
   renderTemplateLibrary();
   templateLibraryStatus.textContent = `${copy.name} 已创建，可以继续导出或使用`;
+  return templateLibraryStatus.textContent;
 }
 
 async function deleteUserTemplate(id) {
@@ -1196,6 +1199,7 @@ async function deleteUserTemplate(id) {
   await persistUserTemplates();
   renderTemplateLibrary();
   templateLibraryStatus.textContent = "模板已删除";
+  return templateLibraryStatus.textContent;
 }
 
 async function importTemplateText(text, source = "imported") {
@@ -1366,6 +1370,7 @@ function openTemplateForm(template) {
   renderTemplateForm();
   if (typeof templateFormDialog.showModal === "function") templateFormDialog.showModal();
   else templateFormDialog.setAttribute("open", "true");
+  return "模板表单已打开";
 }
 
 function closeTemplateForm() {
@@ -1776,6 +1781,61 @@ window.addEventListener("ai-parallel:workspace-prompt-action", (event) => {
     }));
   }).catch((error) => {
     window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action-result", {
+      detail: { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }));
+  });
+});
+window.addEventListener("ai-parallel:workspace-template-action", (event) => {
+  const detail = event instanceof CustomEvent ? event.detail : null;
+  if (!detail || typeof detail !== "object" || typeof detail.type !== "string") return;
+
+  let operation;
+  if (detail.type === "import") {
+    if (typeof detail.text !== "string") return;
+    operation = importTemplateText(detail.text, "file").then((ok) => {
+      if (ok === false) throw new Error(templateLibraryStatus.textContent || "模板导入失败");
+      return templateLibraryStatus.textContent;
+    });
+  } else if (detail.type === "copySchema") {
+    operation = copyValue(promptTemplateUtils.buildTemplateGenerationPrompt()).then(() => {
+      templateLibraryStatus.textContent = "模板生成规范已复制，可粘贴给其他模型";
+      return templateLibraryStatus.textContent;
+    });
+  } else if (detail.type === "exportAll") {
+    downloadJson(promptTemplateUtils.toPackage(allPromptTemplates()), "ai-parallel-prompt-templates-" + new Date().toISOString().slice(0, 10) + ".json");
+    templateLibraryStatus.textContent = "模板包已导出";
+    operation = templateLibraryStatus.textContent;
+  } else if (["use", "duplicate", "export", "delete"].includes(detail.type)) {
+    if (typeof detail.id !== "string" || !detail.id.trim()) return;
+    const template = allPromptTemplates().find((candidate) => candidate.id === detail.id);
+    if (!template) {
+      window.dispatchEvent(new CustomEvent("ai-parallel:workspace-template-action-result", {
+        detail: { ok: false, error: "模板不存在或已被删除" }
+      }));
+      return;
+    }
+    if (detail.type === "use") operation = openTemplateForm(template);
+    if (detail.type === "duplicate") operation = duplicateTemplate(template);
+    if (detail.type === "export") operation = downloadTemplateJson(template);
+    if (detail.type === "delete") {
+      if (template.metadata?.source === "builtin") {
+        window.dispatchEvent(new CustomEvent("ai-parallel:workspace-template-action-result", {
+          detail: { ok: false, error: "内置模板不能删除" }
+        }));
+        return;
+      }
+      operation = deleteUserTemplate(template.id);
+    }
+  } else {
+    return;
+  }
+
+  Promise.resolve(operation).then((message) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-template-action-result", {
+      detail: { ok: true, message: typeof message === "string" ? message : "模板操作已完成" }
+    }));
+  }).catch((error) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-template-action-result", {
       detail: { ok: false, error: error instanceof Error ? error.message : String(error) }
     }));
   });

@@ -1,5 +1,6 @@
 body[data-react-workspace="true"] .workspace-legacy-toolbar { display: none; }
-body[data-react-workspace="true"] #promptLibraryDrawer { display: none !important; }
+body[data-react-workspace="true"] #promptLibraryDrawer,
+body[data-react-workspace="true"] #templateLibraryDrawer { display: none !important; }
 body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-column: 1 / -1; min-width: 0; }
 #workspaceReactRoot { display: none; }
 .workspace-react-toolbar { align-items: center; display: grid; gap: 12px; grid-template-columns: auto minmax(0, 1fr) auto auto; min-height: 48px; padding: 0 14px; }
@@ -88,6 +89,17 @@ body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-col
 .workspace-react-prompt-card p { color: var(--ui-text); font-size: 11px; line-height: 1.45; margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .workspace-react-prompt-actions { display: flex; gap: 6px; }
 .workspace-react-drawer-empty { color: var(--ui-muted); font-size: 11px; padding: 18px 4px; text-align: center; }
+.workspace-react-template-drawer { max-width: min(680px, 96vw); }
+.workspace-react-template-toolbar { border-bottom: 1px solid var(--ui-border); display: grid; gap: 8px; padding: 12px 16px; }
+.workspace-react-template-toolbar select, .workspace-react-template-toolbar input { background: #0d0f13; border: 1px solid var(--ui-border); border-radius: 7px; color: var(--ui-text); min-width: 0; padding: 7px 9px; width: 100%; }
+.workspace-react-template-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.workspace-react-template-list { display: grid; gap: 8px; min-height: 0; overflow: auto; padding: 12px 16px 20px; }
+.workspace-react-template-card { background: rgba(17, 18, 23, .78); border: 1px solid var(--ui-border); border-radius: 9px; display: grid; gap: 7px; padding: 10px; }
+.workspace-react-template-card-header { align-items: center; display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.workspace-react-template-card-header strong { font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-react-template-meta { color: var(--ui-muted); display: flex; flex-wrap: wrap; font-size: 10px; gap: 8px; }
+.workspace-react-template-card p { color: var(--ui-text); font-size: 11px; line-height: 1.45; margin: 0; max-height: 100px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.workspace-react-template-card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 @media (max-width: 1100px) {
   .workspace-react-toolbar { grid-template-columns: auto minmax(0, 1fr) auto; }
   .workspace-actions { grid-column: 2 / -1; grid-row: 2; justify-content: flex-start; }

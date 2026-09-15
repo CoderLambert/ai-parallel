@@ -57,6 +57,7 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   const libraryStatus = read("ui", "workspace", "features", "library-status.tsx");
   const promptDrawer = read("ui", "workspace", "features", "prompt-library-drawer.tsx");
   const sessionStatus = read("ui", "workspace", "features", "session-status.tsx");
+  const templateDrawer = read("ui", "workspace", "features", "template-library-drawer.tsx");
   const promptStatus = read("ui", "workspace", "features", "prompt-status.tsx");
   const templateStatus = read("ui", "workspace", "features", "template-status.tsx");
   const entrypoint = read("entrypoints", "workspace-shell.tsx");
@@ -114,9 +115,17 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.doesNotMatch(promptDrawer, /responseBundles|contentWindow|iframe|dangerouslySetInnerHTML/);
   assert.match(shell, /TemplateStatus/);
   assert.match(shell, /templates/);
+  assert.match(shell, /TemplateLibraryDrawer/);
+  assert.match(shell, /ai-parallel:workspace-template-action/);
   assert.match(templateStatus, /WorkspaceTemplateSummary/);
   assert.match(templateStatus, /outputMode/);
   assert.doesNotMatch(templateStatus, /promptTemplate|inputSchema|outputSchema|responseBundles|iframe/);
+  assert.match(templateDrawer, /WorkspaceTemplateAction/);
+  assert.match(templateDrawer, /type: "import"/);
+  assert.match(templateDrawer, /type: "copySchema"/);
+  assert.match(templateDrawer, /type: "duplicate"/);
+  assert.match(templateDrawer, /type: "delete"/);
+  assert.doesNotMatch(templateDrawer, /promptTemplate|inputSchema|outputSchema|responseBundles|iframe|dangerouslySetInnerHTML/);
   assert.match(shell, /sessionBtn/);
   assert.match(shell, /promptLibraryBtn/);
   assert.match(shell, /templateLibraryBtn/);
@@ -143,7 +152,10 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(legacyWorkspace, /saveCurrentPrompt\(typeof detail\.title === "string"/);
   assert.match(legacyWorkspace, /prompts: workspacePromptState\(\)/);
   assert.match(legacyWorkspace, /function workspaceTemplateState/);
+  assert.match(legacyWorkspace, /description: typeof template\.description === "string"/);
   assert.match(legacyWorkspace, /outputMode: template\.output\?\.mode === "json" \? "json" : "text"/);
   assert.match(legacyWorkspace, /templates: workspaceTemplateState\(\)/);
   assert.match(legacyWorkspace, /ai-parallel:workspace-set-selection/);
+  assert.match(legacyWorkspace, /ai-parallel:workspace-template-action/);
+  assert.match(legacyWorkspace, /promptTemplateUtils\.buildTemplateGenerationPrompt/);
 });
