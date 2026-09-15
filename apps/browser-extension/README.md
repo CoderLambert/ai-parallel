@@ -105,6 +105,34 @@ node tests/browser-smoke.cjs
 The smoke remains credential-free. Provider authentication and live Provider
 checks stay in the protected authenticated smoke workflow.
 
+### Browser build matrix
+
+Chrome, Edge, and Firefox artifacts can be built and packaged independently or
+as a complete matrix:
+
+```bash
+pnpm build:chrome
+pnpm build:edge
+pnpm build:firefox
+pnpm build:matrix
+pnpm package:extension:matrix
+```
+
+The corresponding output directories are `dist/chrome-mv3`,
+`dist/edge-mv3`, and `dist/firefox-mv3`. Chrome keeps the historical archive
+name; Edge and Firefox use `ai-parallel-<browser>-browser-extension-vX.Y.Z.zip`.
+Every archive has a matching `.sha256` file and is checked with `unzip -t` in
+the release workflow. Firefox uses its own MV3 background script declaration
+and the stable `@ai-parallel` extension ID; all targets keep the same narrow
+provider host permissions and do not contain user credentials or authenticated
+smoke state.
+
+The repository workflow runs typecheck, syntax checks, unit tests, all three
+builds, manifest verification, checksums, and archive validation. Browser
+loading and authenticated provider smoke remain final pre-merge checks because
+they require a browser environment and, for provider coverage, user-managed
+authenticated sessions.
+
 ## Shared contracts
 
 `contracts/` contains the strict TypeScript vocabulary for Provider IDs and

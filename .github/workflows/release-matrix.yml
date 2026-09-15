@@ -1,0 +1,93 @@
+name: Release Matrix
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Syntax checks
+        run: npm run check
+
+      - name: Tests
+        run: npm test
+
+  build:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, edge, firefox]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and verify ${{ matrix.browser }}
+        run: pnpm run build:${{ matrix.browser }}
+
+      - name: Package ${{ matrix.browser }}
+        env:
+          EXTENSION_BUILD_DIR: dist/${{ matrix.browser }}-mv3
+          EXTENSION_TARGET: ${{ matrix.browser }}
+        run: bash scripts/package-extension.sh
+
+      - name: Verify archive and checksum
+        shell: bash
+        run: |
+          archive="$(find dist -maxdepth 1 -type f -name '*browser-extension-v*.zip' -print -quit)"
+          test -n "$archive"
+          sha256sum -c "$archive.sha256"
+          unzip -t "$archive"
+
+      - name: Upload ${{ matrix.browser }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-parallel-${{ matrix.browser }}-extension
+          path: |
+            dist/${{ matrix.browser }}-mv3
+            dist/*browser-extension-v*.zip
+            dist/*browser-extension-v*.zip.sha256
+          if-no-files-found: error

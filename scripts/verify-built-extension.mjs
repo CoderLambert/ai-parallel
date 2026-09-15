@@ -5,6 +5,8 @@ import { fileURLToPath } from "node:url";
 const scriptDir = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const repoDir = resolve(scriptDir, "..");
 const buildRoot = resolve(repoDir, process.argv[2] ?? "dist/chrome-mv3");
+const buildTarget = process.argv[3] ?? (buildRoot.match(/(?:^|[/\\])(chrome|edge|firefox)-mv\d+$/)?.[1] || "chrome");
+const isFirefox = buildTarget === "firefox";
 const sourceManifestPath = resolve(repoDir, "apps/browser-extension/manifest.json");
 const builtManifestPath = resolve(buildRoot, "manifest.json");
 
@@ -35,11 +37,21 @@ assertEqual(built.icons, source.icons, "icons");
 assertEqual(built.declarative_net_request, source.declarative_net_request, "declarative_net_request");
 assertEqual(built.content_security_policy, source.content_security_policy, "content_security_policy");
 
-if (typeof built.background?.service_worker !== "string") {
-  throw new Error("Generated manifest is missing a background service worker");
+const backgroundEntries = isFirefox
+  ? built.background?.scripts
+  : [built.background?.service_worker];
+if (!Array.isArray(backgroundEntries) || backgroundEntries.length !== 1 || typeof backgroundEntries[0] !== "string") {
+  throw new Error(`Generated ${buildTarget} manifest has an invalid background entry`);
 }
-if (built.background.service_worker === source.background.service_worker) {
+if (backgroundEntries[0] === source.background.service_worker) {
   throw new Error("Generated manifest still points at the source compatibility service worker");
+}
+if (isFirefox) {
+  const gecko = built.browser_specific_settings?.gecko;
+  assertEqual(gecko?.id, "@ai-parallel", "Firefox extension ID");
+  assertEqual(gecko?.data_collection_permissions, { required: ["none"] }, "Firefox data collection permissions");
+} else if (built.background?.service_worker !== backgroundEntries[0]) {
+  throw new Error(`Generated ${buildTarget} manifest background service worker is invalid`);
 }
 
 if (!Array.isArray(built.content_scripts) || built.content_scripts.length !== source.content_scripts.length) {
@@ -64,7 +76,7 @@ for (const [index, sourceEntry] of source.content_scripts.entries()) {
 }
 
 const referencedFiles = new Set([
-  built.background.service_worker,
+  ...backgroundEntries,
   built.action.default_popup,
   ...built.declarative_net_request.rule_resources.flatMap((resource) => resource.path ? [resource.path] : []),
   ...built.content_scripts.flatMap((entry) => entry.js ?? []),
@@ -139,4 +151,4 @@ if (unexpectedPermissions.length || unexpectedHosts.length) {
   );
 }
 
-console.log(`Verified WXT build: ${buildRoot}`);
+console.log(`Verified WXT ${buildTarget} build: ${buildRoot}`);

@@ -12,15 +12,28 @@ command -v sha256sum >/dev/null || { echo "sha256sum is required" >&2; exit 1; }
 
 BUILD_DIR="${EXTENSION_BUILD_DIR:-$REPO_DIR/dist/chrome-mv3}"
 BUILD_MANIFEST="$BUILD_DIR/manifest.json"
+EXTENSION_TARGET="${EXTENSION_TARGET:-chrome}"
+
+case "$EXTENSION_TARGET" in
+  chrome|edge|firefox) ;;
+  *)
+    echo "Unsupported extension target: $EXTENSION_TARGET" >&2
+    exit 1
+    ;;
+esac
 
 if [[ ! -f "$BUILD_MANIFEST" ]]; then
   echo "Build manifest not found: $BUILD_MANIFEST" >&2
-  echo "Run pnpm build:chrome first" >&2
+  echo "Run the matching pnpm build:<target> command first" >&2
   exit 1
 fi
 
 VERSION="$(node -e 'const fs = require("node:fs"); const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(manifest.version);' "$BUILD_MANIFEST")"
-ARCHIVE_NAME="ai-parallel-browser-extension-v${VERSION}.zip"
+if [[ "$EXTENSION_TARGET" == "chrome" ]]; then
+  ARCHIVE_NAME="ai-parallel-browser-extension-v${VERSION}.zip"
+else
+  ARCHIVE_NAME="ai-parallel-${EXTENSION_TARGET}-browser-extension-v${VERSION}.zip"
+fi
 ARCHIVE_PATH="$OUTPUT_DIR/$ARCHIVE_NAME"
 CHECKSUM_PATH="$ARCHIVE_PATH.sha256"
 

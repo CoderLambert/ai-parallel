@@ -51,6 +51,16 @@ export default defineConfig({
     action: legacyManifest.action,
     icons: legacyManifest.icons,
     content_security_policy: legacyManifest.content_security_policy,
+    ...(browser === "firefox" ? {
+      browser_specific_settings: {
+        gecko: {
+          id: "@ai-parallel",
+          data_collection_permissions: {
+            required: ["none"]
+          }
+        }
+      }
+    } : {}),
   }),
   hooks: {
     "build:publicAssets": (_wxt, files) => {
