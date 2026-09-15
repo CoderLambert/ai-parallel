@@ -1,4 +1,6 @@
 const PROVIDERS = globalThis.AIParallelProviderCatalog;
+const contractRuntime = globalThis.AIParallelContractRuntime;
+const storage = globalThis.AIParallelStorageContract.createLocalStorage();
 
 const $ = (selector) => document.querySelector(selector);
 const providerGrid = $("#providerGrid");
@@ -38,7 +40,7 @@ function renderProviders() {
       else selected.delete(provider.id);
       label.dataset.checked = String(input.checked);
       label.querySelector(".mark").textContent = input.checked ? "✓" : "";
-      await chrome.storage.local.set({ selectedProviders: [...selected] });
+      await storage.set({ selectedProviders: [...selected] });
       updateCounters();
     });
     providerGrid.append(label);
@@ -46,8 +48,10 @@ function renderProviders() {
 }
 
 async function loadPreferences() {
-  const data = await chrome.storage.local.get(["selectedProviders", "draftPrompt"]);
-  const stored = Array.isArray(data.selectedProviders) ? data.selectedProviders : null;
+  const data = await storage.get(["selectedProviders", "draftPrompt"]);
+  const stored = Array.isArray(data.selectedProviders)
+    ? data.selectedProviders.filter((id) => PROVIDERS.some((provider) => provider.id === id))
+    : null;
   selected = new Set(stored || PROVIDERS.filter((p) => p.default).map((p) => p.id));
   promptInput.value = typeof data.draftPrompt === "string" ? data.draftPrompt : "";
   renderProviders();
@@ -64,7 +68,7 @@ async function launch() {
   sendBtn.querySelector("span").textContent = "正在打开…";
 
   try {
-    await chrome.storage.local.set({
+    await storage.set({
       draftPrompt: promptInput.value,
       selectedProviders: [...selected],
       pendingLaunch: {
@@ -73,9 +77,10 @@ async function launch() {
         queuedAt: new Date().toISOString()
       }
     });
-    const response = await chrome.runtime.sendMessage({
-      type: "OPEN_WORKSPACE"
-    });
+    const request = { type: "OPEN_WORKSPACE" };
+    if (!contractRuntime.isServiceWorkerRequest(request)) throw new Error("Invalid workspace request");
+    const response = await chrome.runtime.sendMessage(request);
+    if (!contractRuntime.isServiceWorkerResponse(response)) throw new Error("Invalid workspace response");
     if (!response?.ok) throw new Error(response?.error || "启动失败");
     window.close();
   } catch (error) {
@@ -87,7 +92,7 @@ async function launch() {
 }
 
 promptInput.addEventListener("input", () => {
-  chrome.storage.local.set({ draftPrompt: promptInput.value }).catch(() => {});
+  storage.set({ draftPrompt: promptInput.value }).catch(() => {});
   showError("");
   updateCounters();
 });
@@ -101,7 +106,7 @@ promptInput.addEventListener("keydown", (event) => {
 
 $("#clearBtn").addEventListener("click", async () => {
   promptInput.value = "";
-  await chrome.storage.local.set({ draftPrompt: "" });
+  await storage.set({ draftPrompt: "" });
   promptInput.focus();
   updateCounters();
 });
@@ -110,7 +115,7 @@ $("#toggleAllBtn").addEventListener("click", async () => {
   selected = selected.size === PROVIDERS.length
     ? new Set()
     : new Set(PROVIDERS.map((p) => p.id));
-  await chrome.storage.local.set({ selectedProviders: [...selected] });
+  await storage.set({ selectedProviders: [...selected] });
   renderProviders();
   updateCounters();
 });

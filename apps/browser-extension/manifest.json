@@ -24,10 +24,11 @@
     "https://grok.com/*"
   ],
   "background": {
-    "service_worker": "service-worker.js"
+    "service_worker": "service-worker-loader.js"
   },
   "action": {
-    "default_title": "Open AI Parallel Workspace",
+    "default_title": "AI Parallel Launcher",
+    "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
@@ -65,6 +66,7 @@
         "content/providers/claude.js",
         "content/providers/gemini.js",
         "content/providers/grok.js",
+        "shared/contract-runtime.js",
         "content/frame-bridge.js"
       ],
       "run_at": "document_idle",

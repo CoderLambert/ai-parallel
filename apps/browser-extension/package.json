@@ -4,6 +4,6 @@
   "version": "2.1.4",
   "description": "Manifest V3 workspace for comparing AI web chats in parallel.",
   "scripts": {
-    "check": "node --check shared/provider-catalog.js && node --check shared/provider-adapter-contract.js && node --check shared/provider-task-runtime.js && node --check shared/agent-execution-controller.js && node --check service-worker.js && node --check popup.js && node --check content/frame-bridge.js && node --check workspace/workspace.js"
+    "check": "node --check shared/provider-catalog.js && node --check shared/provider-adapter-contract.js && node --check shared/provider-task-runtime.js && node --check shared/agent-execution-controller.js && node --check shared/prompt-template-utils.js && node --check shared/prompt-template-catalog.js && node --check service-worker-loader.js && node --check service-worker.js && node --check popup.js && node --check content/frame-bridge.js && node --check workspace/workspace.js"
   }
 }

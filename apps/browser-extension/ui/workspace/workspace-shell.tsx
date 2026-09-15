@@ -1,0 +1,387 @@
+import { useEffect, useState } from "react";
+import type { ProviderDescriptor, ProviderId } from "../../contracts/provider";
+import { Button } from "../components/button";
+import { ProviderStrip, type ProviderReadiness } from "./features/provider-strip";
+import { ProviderReadinessPanel, type ProviderPanelAction } from "./features/provider-readiness-panel";
+import { CompareDrawer, type WorkspaceCompareAction } from "./features/compare-drawer";
+import { CompareStatus, type CompareSummary, type WorkspaceCompareResponse } from "./features/compare-status";
+import { HandoffStatus } from "./features/handoff-status";
+import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
+import { PromptLibraryDrawer, type WorkspacePromptAction } from "./features/prompt-library-drawer";
+import { PromptStatus, type WorkspacePromptSummary } from "./features/prompt-status";
+import { SessionLibraryDrawer, type WorkspaceSessionAction } from "./features/session-library-drawer";
+import { SessionStatus, type WorkspaceSessionSummary } from "./features/session-status";
+import { TemplateLibraryDrawer, type WorkspaceTemplateAction } from "./features/template-library-drawer";
+import { TemplateStatus, type WorkspaceTemplateSummary } from "./features/template-status";
+import { WorkspaceActions, type WorkspaceAction } from "./features/workspace-actions";
+
+const providers = globalThis.AIParallelProviderCatalog;
+const storage = globalThis.AIParallelStorageContract.createLocalStorage();
+const legacyActionIds: Record<WorkspaceAction, string> = {
+  session: "sessionBtn",
+  prompt: "promptLibraryBtn",
+  template: "templateLibraryBtn",
+  compare: "compareBtn"
+};
+const layouts = ["auto", "1", "2", "3"] as const;
+type WorkspaceLayout = (typeof layouts)[number];
+type ProviderReadinessMap = Partial<Record<ProviderId, ProviderReadiness>>;
+const emptyCompareSummary: CompareSummary = { open: false, responseCount: 0, pendingCount: 0, status: "" };
+const emptyLibrarySummary: WorkspaceLibrarySummary = { sessions: 0, prompts: 0, templates: 0 };
+
+function isProviderId(value: unknown): value is ProviderId {
+  return typeof value === "string" && providers.some((provider) => provider.id === value);
+}
+
+function readProviderSelection(value: unknown, fallback: readonly ProviderDescriptor[]) {
+  if (!Array.isArray(value)) return fallback.filter((provider) => provider.default).map((provider) => provider.id);
+  return value.filter(isProviderId);
+}
+
+function readProviderReadiness(value: unknown): ProviderReadinessMap {
+  if (!Array.isArray(value)) return {};
+  return Object.fromEntries(value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (!isProviderId(record.providerId)) return [];
+    return [[record.providerId, {
+      loaded: record.loaded === true,
+      ready: record.ready === true,
+      status: typeof record.status === "string" ? record.status : "未加载"
+    }]];
+  })) as ProviderReadinessMap;
+}
+
+function readCompareSummary(value: unknown): CompareSummary {
+  if (!value || typeof value !== "object") return emptyCompareSummary;
+  const record = value as Record<string, unknown>;
+  return {
+    open: record.open === true,
+    responseCount: typeof record.responseCount === "number" && Number.isFinite(record.responseCount)
+      ? Math.max(0, Math.floor(record.responseCount))
+      : 0,
+    pendingCount: typeof record.pendingCount === "number" && Number.isFinite(record.pendingCount)
+      ? Math.max(0, Math.floor(record.pendingCount))
+      : 0,
+    status: typeof record.status === "string" ? record.status : "",
+    responses: readCompareResponses(record.responses)
+  };
+}
+
+function readCompareResponses(value: unknown): WorkspaceCompareResponse[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.providerId !== "string" || !record.providerId.trim()) return [];
+    const schemaStatus: WorkspaceCompareResponse["schemaStatus"] = record.schemaStatus === "valid" || record.schemaStatus === "invalid"
+      ? record.schemaStatus
+      : "";
+    return [{
+      providerId: record.providerId,
+      providerName: typeof record.providerName === "string" ? record.providerName : record.providerId,
+      ok: record.ok === true,
+      pending: record.pending === true,
+      content: typeof record.content === "string" ? record.content : "",
+      error: typeof record.error === "string" ? record.error : "",
+      timestamp: typeof record.timestamp === "string" ? record.timestamp : "",
+      schemaStatus,
+      canImportTemplate: record.canImportTemplate === true
+    }];
+  }).slice(0, 20);
+}
+
+function readLibrarySummary(value: unknown): WorkspaceLibrarySummary {
+  if (!value || typeof value !== "object") return emptyLibrarySummary;
+  const record = value as Record<string, unknown>;
+  return {
+    sessions: typeof record.sessions === "number" && Number.isFinite(record.sessions)
+      ? Math.max(0, Math.floor(record.sessions))
+      : 0,
+    prompts: typeof record.prompts === "number" && Number.isFinite(record.prompts)
+      ? Math.max(0, Math.floor(record.prompts))
+      : 0,
+    templates: typeof record.templates === "number" && Number.isFinite(record.templates)
+      ? Math.max(0, Math.floor(record.templates))
+      : 0
+  };
+}
+
+function readSessionSummaries(value: unknown): WorkspaceSessionSummary[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.id !== "string" || !record.id.trim()) return [];
+    const readCount = (candidate: unknown) => typeof candidate === "number" && Number.isFinite(candidate)
+      ? Math.max(0, Math.floor(candidate))
+      : 0;
+    return [{
+      id: record.id,
+      title: typeof record.title === "string" && record.title.trim() ? record.title : "Untitled Session",
+      updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : "",
+      providerCount: readCount(record.providerCount),
+      promptLength: readCount(record.promptLength)
+    }];
+  }).slice(0, 20);
+}
+
+function readPromptSummaries(value: unknown): WorkspacePromptSummary[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.id !== "string" || !record.id.trim()) return [];
+    const contentLength = typeof record.contentLength === "number" && Number.isFinite(record.contentLength)
+      ? Math.max(0, Math.floor(record.contentLength))
+      : 0;
+    return [{
+      id: record.id,
+      title: typeof record.title === "string" && record.title.trim() ? record.title : "Untitled Prompt",
+      updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : "",
+      contentLength,
+      content: typeof record.content === "string" ? record.content : ""
+    }];
+  }).slice(0, 50);
+}
+
+function readTemplateSummaries(value: unknown): WorkspaceTemplateSummary[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.id !== "string" || !record.id.trim()) return [];
+    const version = typeof record.version === "number" && Number.isFinite(record.version)
+      ? Math.max(1, Math.floor(record.version))
+      : 1;
+    return [{
+      id: record.id,
+      name: typeof record.name === "string" && record.name.trim() ? record.name : "Untitled Template",
+      category: typeof record.category === "string" && record.category.trim() ? record.category : "未分类",
+      description: typeof record.description === "string" ? record.description : "",
+      outputMode: record.outputMode === "json" ? "json" as const : "text" as const,
+      version,
+      source: record.source === "builtin" ? "builtin" as const : "user" as const
+    }];
+  }).slice(0, 100);
+}
+
+function emitSelection(providerIds: readonly ProviderId[]) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-set-selection", {
+    detail: { providerIds: [...providerIds] }
+  }));
+}
+
+function emitPromptAction(action: WorkspacePromptAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action", {
+    detail: action
+  }));
+}
+
+function emitTemplateAction(action: WorkspaceTemplateAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-template-action", {
+    detail: action
+  }));
+}
+
+function emitCompareAction(action: WorkspaceCompareAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-compare-action", {
+    detail: action
+  }));
+}
+
+function emitSessionAction(action: WorkspaceSessionAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-session-action", {
+    detail: action
+  }));
+}
+
+function triggerLegacyAction(action: WorkspaceAction) {
+  document.getElementById(legacyActionIds[action])?.click();
+}
+
+function triggerProviderPanelAction(providerId: ProviderId, action: ProviderPanelAction) {
+  const panel = [...document.querySelectorAll<HTMLElement>(".provider-panel")]
+    .find((candidate) => candidate.dataset.providerId === providerId);
+  const buttonClass = action === "reload" ? ".reload-btn" : ".open-btn";
+  panel?.querySelector<HTMLButtonElement>(buttonClass)?.click();
+}
+
+export function WorkspaceShell() {
+  const [selected, setSelected] = useState<ProviderId[]>([]);
+  const [layout, setLayout] = useState<WorkspaceLayout>("auto");
+  const [readiness, setReadiness] = useState<ProviderReadinessMap>({});
+  const [compare, setCompare] = useState<CompareSummary>(emptyCompareSummary);
+  const [libraries, setLibraries] = useState<WorkspaceLibrarySummary>(emptyLibrarySummary);
+  const [sessions, setSessions] = useState<WorkspaceSessionSummary[]>([]);
+  const [prompts, setPrompts] = useState<WorkspacePromptSummary[]>([]);
+  const [templates, setTemplates] = useState<WorkspaceTemplateSummary[]>([]);
+  const [activeDrawer, setActiveDrawer] = useState<"prompt" | "template" | "session" | "compare" | null>(null);
+  const [promptActionStatus, setPromptActionStatus] = useState("");
+  const [templateActionStatus, setTemplateActionStatus] = useState("");
+  const [sessionActionStatus, setSessionActionStatus] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    storage.get(["selectedProviders", "workspaceLayout"]).then((data) => {
+      if (!active) return;
+      setSelected(readProviderSelection(data.selectedProviders, providers));
+      setLayout(layouts.includes(data.workspaceLayout as WorkspaceLayout) ? data.workspaceLayout as WorkspaceLayout : "auto");
+    }).catch(() => {});
+
+    const handleWorkspaceState = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        selectedProviders?: unknown;
+        workspaceLayout?: unknown;
+        providerStates?: unknown;
+        compare?: unknown;
+        libraries?: unknown;
+        sessions?: unknown;
+        prompts?: unknown;
+        templates?: unknown;
+      }>).detail;
+      if (detail?.selectedProviders) setSelected(readProviderSelection(detail.selectedProviders, providers));
+      if (layouts.includes(detail?.workspaceLayout as WorkspaceLayout)) setLayout(detail.workspaceLayout as WorkspaceLayout);
+      if (detail?.providerStates) setReadiness(readProviderReadiness(detail.providerStates));
+      if (detail?.compare) setCompare(readCompareSummary(detail.compare));
+      if (detail?.libraries) setLibraries(readLibrarySummary(detail.libraries));
+      if (detail?.sessions) setSessions(readSessionSummaries(detail.sessions));
+      if (detail?.prompts) setPrompts(readPromptSummaries(detail.prompts));
+      if (detail?.templates) setTemplates(readTemplateSummaries(detail.templates));
+    };
+    const handlePromptActionResult = (event: Event) => {
+      const detail = (event as CustomEvent<{ ok?: unknown; message?: unknown; error?: unknown }>).detail;
+      if (detail?.ok === true) setPromptActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
+      else if (detail?.ok === false) setPromptActionStatus(typeof detail.error === "string" ? detail.error : "Prompt 操作失败");
+    };
+    const handleTemplateActionResult = (event: Event) => {
+      const detail = (event as CustomEvent<{ ok?: unknown; message?: unknown; error?: unknown }>).detail;
+      if (detail?.ok === true) setTemplateActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
+      else if (detail?.ok === false) setTemplateActionStatus(typeof detail.error === "string" ? detail.error : "模板操作失败");
+    };
+    const handleSessionActionResult = (event: Event) => {
+      const detail = (event as CustomEvent<{ ok?: unknown; message?: unknown; error?: unknown }>).detail;
+      if (detail?.ok === true) setSessionActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
+      else if (detail?.ok === false) setSessionActionStatus(typeof detail.error === "string" ? detail.error : "Session 操作失败");
+    };
+    window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
+    window.addEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
+    window.addEventListener("ai-parallel:workspace-template-action-result", handleTemplateActionResult);
+    window.addEventListener("ai-parallel:workspace-session-action-result", handleSessionActionResult);
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state-request"));
+    return () => {
+      active = false;
+      window.removeEventListener("ai-parallel:workspace-state", handleWorkspaceState);
+      window.removeEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
+      window.removeEventListener("ai-parallel:workspace-template-action-result", handleTemplateActionResult);
+      window.removeEventListener("ai-parallel:workspace-session-action-result", handleSessionActionResult);
+    };
+  }, []);
+
+  function toggleProvider(providerId: ProviderId) {
+    const next = selected.includes(providerId)
+      ? selected.filter((id) => id !== providerId)
+      : [...selected, providerId];
+    setSelected(next);
+    emitSelection(next);
+  }
+
+  function changeLayout(next: WorkspaceLayout) {
+    setLayout(next);
+    document.querySelector<HTMLButtonElement>(`.layout-switch button[data-layout="${next}"]`)?.click();
+  }
+
+  function openWorkspaceAction(action: WorkspaceAction) {
+    if (action === "prompt" || action === "template" || action === "session" || action === "compare") {
+      if (action === "prompt") setPromptActionStatus("");
+      else if (action === "template") setTemplateActionStatus("");
+      else if (action === "session") setSessionActionStatus("");
+      setActiveDrawer(action);
+      if (action === "compare") emitCompareAction({ type: "open" });
+      return;
+    }
+    openLegacyAction(action);
+  }
+
+  function openLegacyAction(action: WorkspaceAction) {
+    setActiveDrawer(null);
+    triggerLegacyAction(action);
+  }
+
+  function handlePromptAction(action: WorkspacePromptAction) {
+    setPromptActionStatus("正在处理…");
+    emitPromptAction(action);
+  }
+
+  function handleTemplateAction(action: WorkspaceTemplateAction) {
+    setTemplateActionStatus("正在处理…");
+    if (action.type === "use") setActiveDrawer(null);
+    emitTemplateAction(action);
+  }
+
+  function handleSessionAction(action: WorkspaceSessionAction) {
+    setSessionActionStatus("正在处理…");
+    if (action.type === "load") setActiveDrawer(null);
+    emitSessionAction(action);
+  }
+
+  function handleCompareAction(action: WorkspaceCompareAction) {
+    if (action.type === "open") setActiveDrawer("compare");
+    if (action.type === "close") setActiveDrawer(null);
+    if (action.type === "importTemplate") setActiveDrawer("template");
+    emitCompareAction(action);
+  }
+
+  return (
+    <div className="workspace-react-toolbar">
+      <div className="workspace-react-brand">
+        <span className="workspace-react-mark">AP</span>
+        <span>AI Parallel</span>
+        <span className="workspace-react-version">React Shell</span>
+      </div>
+      <ProviderStrip providers={providers} selected={selected} readiness={readiness} onToggle={toggleProvider} />
+      <WorkspaceActions onAction={openWorkspaceAction} />
+      <div className="workspace-layout-switch" aria-label="布局">
+        {layouts.map((value) => (
+          <Button key={value} size="sm" variant={layout === value ? "secondary" : "ghost"} aria-pressed={layout === value} onClick={() => changeLayout(value)}>
+            {value === "auto" ? "Auto" : value}
+          </Button>
+        ))}
+      </div>
+      <ProviderReadinessPanel
+        providers={providers}
+        selected={selected}
+        readiness={readiness}
+        onAction={triggerProviderPanelAction}
+      />
+      <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => openWorkspaceAction("compare")} />
+      <HandoffStatus responseCount={compare.responseCount} onOpen={() => openWorkspaceAction("compare")} />
+      <SessionStatus sessions={sessions} onOpen={() => openWorkspaceAction("session")} />
+      <PromptStatus prompts={prompts} onOpen={() => openWorkspaceAction("prompt")} />
+      <TemplateStatus templates={templates} onOpen={() => openWorkspaceAction("template")} />
+      <LibraryStatus summary={libraries} onOpen={openWorkspaceAction} />
+      <PromptLibraryDrawer
+        open={activeDrawer === "prompt"}
+        prompts={prompts}
+        status={promptActionStatus}
+        onClose={() => setActiveDrawer(null)}
+        onAction={handlePromptAction}
+      />
+      <TemplateLibraryDrawer
+        open={activeDrawer === "template"}
+        templates={templates}
+        status={templateActionStatus}
+        onClose={() => setActiveDrawer(null)}
+        onAction={handleTemplateAction}
+      />
+      <SessionLibraryDrawer
+        open={activeDrawer === "session"}
+        sessions={sessions}
+        status={sessionActionStatus}
+        onClose={() => setActiveDrawer(null)}
+        onAction={handleSessionAction}
+      />
+      <CompareDrawer open={activeDrawer === "compare"} summary={compare} onAction={handleCompareAction} />
+    </div>
+  );
+}

@@ -1,8 +1,6 @@
 name: Browser Smoke
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -16,10 +14,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.1.2
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+
+      - name: Install project
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Chrome artifact
+        run: pnpm build:chrome
 
       - name: Install Playwright
         run: npm install --no-save --no-package-lock playwright@1.55.0
@@ -31,7 +41,10 @@ jobs:
         run: node --check tests/browser-smoke.cjs
 
       - name: Run extension smoke
-        run: xvfb-run --auto-servernum node tests/browser-smoke.cjs
+        env:
+          AI_PARALLEL_EXTENSION_ROOT: dist/chrome-mv3
+          AI_PARALLEL_BROWSER_HEADLESS: "true"
+        run: node tests/browser-smoke.cjs
 
       - name: Upload browser diagnostics
         if: ${{ failure() }}

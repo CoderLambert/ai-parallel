@@ -1,0 +1,72 @@
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ui-background: #0b0c0f;
+  --ui-surface: #111217;
+  --ui-surface-raised: #181a21;
+  --ui-border: #292c36;
+  --ui-border-strong: #4b4f62;
+  --ui-text: #f4f4f5;
+  --ui-muted: #8b8d98;
+  --ui-accent: #6366f1;
+  --ui-danger: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+
+.ui-button {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  display: inline-flex;
+  gap: 7px;
+  justify-content: center;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.ui-button:focus-visible, .ui-input:focus-visible, .ui-textarea:focus-visible, select:focus-visible {
+  outline: 2px solid rgba(129, 140, 248, .9);
+  outline-offset: 2px;
+}
+.ui-button:disabled { cursor: not-allowed; opacity: .45; }
+.ui-button-sm { min-height: 30px; padding: 5px 9px; font-size: 12px; }
+.ui-button-md { min-height: 38px; padding: 8px 13px; font-size: 13px; }
+.ui-button-lg { min-height: 46px; padding: 11px 17px; font-size: 14px; }
+.ui-button-primary { background: var(--ui-text); color: #111217; }
+.ui-button-primary:hover { background: #fff; }
+.ui-button-secondary { background: var(--ui-surface-raised); border-color: var(--ui-border); color: var(--ui-text); }
+.ui-button-secondary:hover, .ui-button-outline:hover { border-color: var(--ui-border-strong); background: #20232c; }
+.ui-button-outline { background: transparent; border-color: var(--ui-border); color: var(--ui-text); }
+.ui-button-ghost { background: transparent; color: var(--ui-muted); }
+.ui-button-ghost:hover { background: var(--ui-surface-raised); color: var(--ui-text); }
+.ui-button-danger { background: rgba(127, 29, 29, .22); border-color: #7f1d1d; color: #fecaca; }
+.ui-button-danger:hover { background: rgba(153, 27, 27, .36); }
+
+.ui-input, .ui-textarea, select {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 9px;
+  color: var(--ui-text);
+  padding: 9px 11px;
+  width: 100%;
+}
+.ui-input::placeholder, .ui-textarea::placeholder { color: #656875; }
+.ui-textarea { line-height: 1.5; min-height: 96px; resize: vertical; }
+.ui-card {
+  background: rgba(18, 19, 24, .84);
+  border: 1px solid var(--ui-border);
+  border-radius: 13px;
+}
+.ui-card-header { padding: 13px 14px 0; }
+.ui-card-content { padding: 13px 14px 14px; }
+.ui-badge {
+  background: rgba(99, 102, 241, .14);
+  border: 1px solid rgba(129, 140, 248, .35);
+  border-radius: 99px;
+  color: #c7d2fe;
+  display: inline-flex;
+  font-size: 10px;
+  padding: 3px 7px;
+}
