@@ -61,6 +61,7 @@ async function run() {
     await page.locator(".workspace-provider-readiness-card").first().waitFor({ state: "visible" });
     const readinessCardCount = await page.locator(".workspace-provider-readiness-card").count();
     assert.ok(readinessCardCount > 0 && readinessCardCount <= 8);
+    assert.equal(await page.locator(".workspace-compare-status").count(), 1);
     assert.equal(await page.locator("#sendBtn").isDisabled(), true);
     const workspaceAction = (label) => page.locator(".workspace-actions .ui-button", { hasText: label });
 

@@ -126,14 +126,29 @@ function workspaceProviderStates() {
   });
 }
 
+function workspaceCompareState() {
+  return {
+    open: compareDrawer.dataset.open === "true",
+    responseCount: responseBundles.size,
+    pendingCount: pendingCollections.size,
+    status: compareStatus.textContent || ""
+  };
+}
+
 function notifyWorkspaceShell() {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state", {
     detail: {
       selectedProviders: [...selected],
       workspaceLayout: currentLayout,
-      providerStates: workspaceProviderStates()
+      providerStates: workspaceProviderStates(),
+      compare: workspaceCompareState()
     }
   }));
+}
+
+function setCompareStatus(message) {
+  compareStatus.textContent = message;
+  notifyWorkspaceShell();
 }
 
 function setPanelState(providerId, state, { ready } = {}) {
@@ -695,11 +710,13 @@ function renderResponses() {
   const selectedIds = PROVIDERS.map((provider) => provider.id).filter((id) => selected.has(id));
   if (!selectedIds.length) {
     responseList.innerHTML = '<div class="response-empty">请先选择模型</div>';
+    notifyWorkspaceShell();
     return;
   }
 
   if (!responseBundles.size) {
     responseList.innerHTML = '<div class="response-empty">点击 Compare 收集当前回答</div>';
+    notifyWorkspaceShell();
     return;
   }
 
@@ -755,7 +772,7 @@ function renderResponses() {
       const actions = document.createElement("div");
       actions.className = "response-card-actions";
       actions.append(createTemplateButton("尝试导入模板", () => importResponseAsTemplate(providerId).catch((error) => {
-        compareStatus.textContent = error instanceof Error ? error.message : String(error);
+        setCompareStatus(error instanceof Error ? error.message : String(error));
       })));
       card.append(actions);
     } else {
@@ -777,18 +794,19 @@ function renderResponses() {
     }
     responseList.append(card);
   }
+  notifyWorkspaceShell();
 }
 
 async function importResponseAsTemplate(providerId) {
   const result = responseBundles.get(providerId);
   const content = result?.response?.content || result?.response?.markdown || "";
   if (!content.trim()) {
-    compareStatus.textContent = "当前回答为空，无法导入模板";
+    setCompareStatus("当前回答为空，无法导入模板");
     return;
   }
   const imported = await importTemplateText(content, "response");
   if (imported) {
-    compareStatus.textContent = `${providerName(providerId)} 的回答已导入模板库`;
+    setCompareStatus(`${providerName(providerId)} 的回答已导入模板库`);
     openTemplateLibraryDrawer();
   }
 }
@@ -812,15 +830,15 @@ async function retryResponse(providerId) {
 
   responseBundles.set(providerId, { ok: false, error: "正在重试…" });
   renderResponses();
-  compareStatus.textContent = `正在重试收集 ${providerName(providerId)}…`;
+  setCompareStatus(`正在重试收集 ${providerName(providerId)}…`);
 
   const result = await collectResponseSafely(providerId);
   if (!selected.has(providerId)) return;
 
   responseBundles.set(providerId, result);
-  compareStatus.textContent = result.ok
+  setCompareStatus(result.ok
     ? `${providerName(providerId)} 已重新收集`
-    : `${providerName(providerId)} 重试失败，可再次尝试`;
+    : `${providerName(providerId)} 重试失败，可再次尝试`);
   renderResponses();
 }
 
@@ -831,7 +849,7 @@ async function collectResponses() {
   }
 
   compareBtn.disabled = true;
-  compareStatus.textContent = `正在收集 ${selected.size} 个模型的回答…`;
+  setCompareStatus(`正在收集 ${selected.size} 个模型的回答…`);
   responseBundles.clear();
   renderResponses();
 
@@ -842,9 +860,9 @@ async function collectResponses() {
     ]));
     for (const [providerId, result] of pairs) responseBundles.set(providerId, result);
     const count = pairs.filter(([, result]) => result.ok).length;
-    compareStatus.textContent = count
+    setCompareStatus(count
       ? `已收集 ${count}/${pairs.length} 个回答 · ${new Date().toLocaleTimeString()}`
-      : "暂未找到回答；请等待模型生成完成后重试";
+      : "暂未找到回答；请等待模型生成完成后重试");
     renderResponses();
   } finally {
     compareBtn.disabled = false;
@@ -857,14 +875,16 @@ function openCompareDrawer() {
   closeTemplateLibraryDrawer();
   compareDrawer.dataset.open = "true";
   compareDrawer.setAttribute("aria-hidden", "false");
+  notifyWorkspaceShell();
   collectResponses().catch((error) => {
-    compareStatus.textContent = error instanceof Error ? error.message : String(error);
+    setCompareStatus(error instanceof Error ? error.message : String(error));
   });
 }
 
 function closeCompareDrawer() {
   compareDrawer.dataset.open = "false";
   compareDrawer.setAttribute("aria-hidden", "true");
+  notifyWorkspaceShell();
 }
 
 function promptTitleFromContent(content) {
@@ -1526,7 +1546,7 @@ async function copyValue(value) {
 
 async function copyText(value, successMessage) {
   await copyValue(value);
-  compareStatus.textContent = successMessage;
+  setCompareStatus(successMessage);
 }
 
 function downloadMarkdown() {
@@ -1539,7 +1559,7 @@ function downloadMarkdown() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  compareStatus.textContent = "Markdown 已下载";
+  setCompareStatus("Markdown 已下载");
 }
 
 function buildHandoffPrompt() {
@@ -1557,11 +1577,11 @@ function hasSuccessfulResponseSnapshot() {
 
 async function sendToAgent() {
   if (!selected.size) {
-    compareStatus.textContent = "至少选择一个模型";
+    setCompareStatus("至少选择一个模型");
     return;
   }
   if (!hasSuccessfulResponseSnapshot()) {
-    compareStatus.textContent = "请先点击 Compare 收集至少一个回答";
+    setCompareStatus("请先点击 Compare 收集至少一个回答");
     return;
   }
 
@@ -1572,16 +1592,16 @@ async function sendToAgent() {
     renderProviderBar();
     renderPanels();
     updateMeta();
-    compareStatus.textContent = `正在打开 ${providerName(target)}…`;
+    setCompareStatus(`正在打开 ${providerName(target)}…`);
   }
 
   sendAgentBtn.disabled = true;
-  compareStatus.textContent = `正在发送上下文到 ${providerName(target)}…`;
+  setCompareStatus(`正在发送上下文到 ${providerName(target)}…`);
   try {
     const result = await sendPromptToProvider(target, buildHandoffPrompt());
-    compareStatus.textContent = result.ok
+    setCompareStatus(result.ok
       ? `上下文已发送到 ${providerName(target)}`
-      : result.error || "Agent handoff 失败";
+      : result.error || "Agent handoff 失败");
   } finally {
     sendAgentBtn.disabled = false;
   }
@@ -1723,7 +1743,7 @@ copyMarkdownBtn.addEventListener("click", () => copyText(buildComparisonMarkdown
 copyJsonBtn.addEventListener("click", () => copyText(buildComparisonJson(), "JSON 已复制"));
 downloadMarkdownBtn.addEventListener("click", downloadMarkdown);
 sendAgentBtn.addEventListener("click", () => sendToAgent().catch((error) => {
-  compareStatus.textContent = error instanceof Error ? error.message : String(error);
+  setCompareStatus(error instanceof Error ? error.message : String(error));
 }));
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

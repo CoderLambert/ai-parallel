@@ -22,6 +22,10 @@ body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-col
 .workspace-provider-readiness-actions { display: flex; gap: 2px; margin-left: auto; }
 .workspace-provider-readiness-actions .ui-button { min-width: 26px; padding-left: 5px; padding-right: 5px; }
 .workspace-provider-readiness-empty { color: var(--ui-muted); font-size: 11px; grid-column: 1 / -1; padding: 0 2px 8px; }
+.workspace-compare-status { align-items: center; border-top: 1px solid var(--ui-border); display: grid; gap: 8px; grid-column: 1 / -1; grid-template-columns: auto minmax(0, 1fr) auto; padding: 8px 14px 10px; }
+.workspace-compare-status-heading { align-items: center; display: flex; gap: 7px; white-space: nowrap; }
+.workspace-compare-status-message { color: var(--ui-muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-compare-pending { color: #facc15; font-size: 10px; }
 .workspace-actions { justify-content: flex-end; }
 .workspace-layout-switch { background: #0d0f13; border: 1px solid var(--ui-border); border-radius: 8px; gap: 2px; padding: 2px; }
 .workspace-layout-switch .ui-button { min-width: 30px; }
