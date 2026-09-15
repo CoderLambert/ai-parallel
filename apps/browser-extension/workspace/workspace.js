@@ -162,7 +162,8 @@ function workspacePromptState() {
       id: entry.id,
       title: typeof entry.title === "string" ? entry.title : "Untitled Prompt",
       updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : (typeof entry.createdAt === "string" ? entry.createdAt : ""),
-      contentLength: typeof entry.content === "string" ? entry.content.length : 0
+      contentLength: typeof entry.content === "string" ? entry.content.length : 0,
+      content: typeof entry.content === "string" ? entry.content : ""
     }));
 }
 
@@ -193,6 +194,8 @@ function notifyWorkspaceShell() {
     }
   }));
 }
+
+window.addEventListener("ai-parallel:workspace-state-request", notifyWorkspaceShell);
 
 function setCompareStatus(message) {
   compareStatus.textContent = message;
@@ -1534,17 +1537,17 @@ async function loadSession(entry) {
   closeSessionDrawer();
 }
 
-async function saveCurrentPrompt() {
+async function saveCurrentPrompt(titleOverride) {
   const content = promptInput.value.trim();
   if (!content) {
     promptLibraryStatus.textContent = "当前没有可保存的 Prompt";
-    return;
+    return promptLibraryStatus.textContent;
   }
 
   const now = new Date().toISOString();
   const entry = {
     id: crypto.randomUUID(),
-    title: promptTitleInput.value.trim() || promptTitleFromContent(content),
+    title: (typeof titleOverride === "string" ? titleOverride.trim() : promptTitleInput.value.trim()) || promptTitleFromContent(content),
     content,
     createdAt: now,
     updatedAt: now
@@ -1554,6 +1557,7 @@ async function saveCurrentPrompt() {
   promptTitleInput.value = "";
   renderPromptLibrary();
   promptLibraryStatus.textContent = "Prompt 已保存";
+  return promptLibraryStatus.textContent;
 }
 
 async function deletePrompt(id) {
@@ -1561,6 +1565,7 @@ async function deletePrompt(id) {
   await storage.set({ [PROMPT_LIBRARY_KEY]: promptLibraryEntries });
   renderPromptLibrary();
   promptLibraryStatus.textContent = "Prompt 已删除";
+  return promptLibraryStatus.textContent;
 }
 
 function usePrompt(entry) {
@@ -1571,6 +1576,7 @@ function usePrompt(entry) {
   updateMeta();
   showError("");
   closePromptLibraryDrawer();
+  return "Prompt 已填入编辑器";
 }
 
 function buildComparisonMarkdown() {
@@ -1743,6 +1749,37 @@ closePromptLibraryBtn.addEventListener("click", closePromptLibraryDrawer);
 savePromptBtn.addEventListener("click", () => saveCurrentPrompt().catch((error) => {
   promptLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
 }));
+window.addEventListener("ai-parallel:workspace-prompt-action", (event) => {
+  const detail = event instanceof CustomEvent ? event.detail : null;
+  if (!detail || typeof detail !== "object" || typeof detail.type !== "string") return;
+
+  let operation;
+  if (detail.type === "save") {
+    operation = saveCurrentPrompt(typeof detail.title === "string" ? detail.title : "");
+  } else if (detail.type === "use" || detail.type === "delete") {
+    if (typeof detail.id !== "string" || !detail.id.trim()) return;
+    const entry = promptLibraryEntries.find((candidate) => candidate.id === detail.id);
+    if (!entry) {
+      window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action-result", {
+        detail: { ok: false, error: "Prompt 不存在或已被删除" }
+      }));
+      return;
+    }
+    operation = detail.type === "use" ? usePrompt(entry) : deletePrompt(entry.id);
+  } else {
+    return;
+  }
+
+  Promise.resolve(operation).then((message) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action-result", {
+      detail: { ok: true, message: typeof message === "string" ? message : "Prompt 操作已完成" }
+    }));
+  }).catch((error) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action-result", {
+      detail: { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }));
+  });
+});
 templateLibraryBtn.addEventListener("click", openTemplateLibraryDrawer);
 closeTemplateLibraryBtn.addEventListener("click", closeTemplateLibraryDrawer);
 templateCategorySelect.addEventListener("change", renderTemplateLibrary);

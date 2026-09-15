@@ -6,6 +6,7 @@ import { ProviderReadinessPanel, type ProviderPanelAction } from "./features/pro
 import { CompareStatus, type CompareSummary } from "./features/compare-status";
 import { HandoffStatus } from "./features/handoff-status";
 import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
+import { PromptLibraryDrawer, type WorkspacePromptAction } from "./features/prompt-library-drawer";
 import { PromptStatus, type WorkspacePromptSummary } from "./features/prompt-status";
 import { SessionStatus, type WorkspaceSessionSummary } from "./features/session-status";
 import { TemplateStatus, type WorkspaceTemplateSummary } from "./features/template-status";
@@ -111,7 +112,8 @@ function readPromptSummaries(value: unknown): WorkspacePromptSummary[] {
       id: record.id,
       title: typeof record.title === "string" && record.title.trim() ? record.title : "Untitled Prompt",
       updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : "",
-      contentLength
+      contentLength,
+      content: typeof record.content === "string" ? record.content : ""
     }];
   }).slice(0, 50);
 }
@@ -142,6 +144,12 @@ function emitSelection(providerIds: readonly ProviderId[]) {
   }));
 }
 
+function emitPromptAction(action: WorkspacePromptAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action", {
+    detail: action
+  }));
+}
+
 function triggerLegacyAction(action: WorkspaceAction) {
   document.getElementById(legacyActionIds[action])?.click();
 }
@@ -162,6 +170,8 @@ export function WorkspaceShell() {
   const [sessions, setSessions] = useState<WorkspaceSessionSummary[]>([]);
   const [prompts, setPrompts] = useState<WorkspacePromptSummary[]>([]);
   const [templates, setTemplates] = useState<WorkspaceTemplateSummary[]>([]);
+  const [promptDrawerOpen, setPromptDrawerOpen] = useState(false);
+  const [promptActionStatus, setPromptActionStatus] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -191,10 +201,18 @@ export function WorkspaceShell() {
       if (detail?.prompts) setPrompts(readPromptSummaries(detail.prompts));
       if (detail?.templates) setTemplates(readTemplateSummaries(detail.templates));
     };
+    const handlePromptActionResult = (event: Event) => {
+      const detail = (event as CustomEvent<{ ok?: unknown; message?: unknown; error?: unknown }>).detail;
+      if (detail?.ok === true) setPromptActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
+      else if (detail?.ok === false) setPromptActionStatus(typeof detail.error === "string" ? detail.error : "Prompt 操作失败");
+    };
     window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
+    window.addEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state-request"));
     return () => {
       active = false;
       window.removeEventListener("ai-parallel:workspace-state", handleWorkspaceState);
+      window.removeEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
     };
   }, []);
 
@@ -211,6 +229,25 @@ export function WorkspaceShell() {
     document.querySelector<HTMLButtonElement>(`.layout-switch button[data-layout="${next}"]`)?.click();
   }
 
+  function openWorkspaceAction(action: WorkspaceAction) {
+    if (action === "prompt") {
+      setPromptActionStatus("");
+      setPromptDrawerOpen(true);
+      return;
+    }
+    openLegacyAction(action);
+  }
+
+  function openLegacyAction(action: WorkspaceAction) {
+    setPromptDrawerOpen(false);
+    triggerLegacyAction(action);
+  }
+
+  function handlePromptAction(action: WorkspacePromptAction) {
+    setPromptActionStatus("正在处理…");
+    emitPromptAction(action);
+  }
+
   return (
     <div className="workspace-react-toolbar">
       <div className="workspace-react-brand">
@@ -219,7 +256,7 @@ export function WorkspaceShell() {
         <span className="workspace-react-version">React Shell</span>
       </div>
       <ProviderStrip providers={providers} selected={selected} readiness={readiness} onToggle={toggleProvider} />
-      <WorkspaceActions onAction={triggerLegacyAction} />
+      <WorkspaceActions onAction={openWorkspaceAction} />
       <div className="workspace-layout-switch" aria-label="布局">
         {layouts.map((value) => (
           <Button key={value} size="sm" variant={layout === value ? "secondary" : "ghost"} aria-pressed={layout === value} onClick={() => changeLayout(value)}>
@@ -233,12 +270,19 @@ export function WorkspaceShell() {
         readiness={readiness}
         onAction={triggerProviderPanelAction}
       />
-      <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => triggerLegacyAction("compare")} />
-      <HandoffStatus responseCount={compare.responseCount} onOpen={() => triggerLegacyAction("compare")} />
-      <SessionStatus sessions={sessions} onOpen={() => triggerLegacyAction("session")} />
-      <PromptStatus prompts={prompts} onOpen={() => triggerLegacyAction("prompt")} />
-      <TemplateStatus templates={templates} onOpen={() => triggerLegacyAction("template")} />
-      <LibraryStatus summary={libraries} onOpen={triggerLegacyAction} />
+      <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => openLegacyAction("compare")} />
+      <HandoffStatus responseCount={compare.responseCount} onOpen={() => openLegacyAction("compare")} />
+      <SessionStatus sessions={sessions} onOpen={() => openLegacyAction("session")} />
+      <PromptStatus prompts={prompts} onOpen={() => openWorkspaceAction("prompt")} />
+      <TemplateStatus templates={templates} onOpen={() => openLegacyAction("template")} />
+      <LibraryStatus summary={libraries} onOpen={openWorkspaceAction} />
+      <PromptLibraryDrawer
+        open={promptDrawerOpen}
+        prompts={prompts}
+        status={promptActionStatus}
+        onClose={() => setPromptDrawerOpen(false)}
+        onAction={handlePromptAction}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 body[data-react-workspace="true"] .workspace-legacy-toolbar { display: none; }
+body[data-react-workspace="true"] #promptLibraryDrawer { display: none !important; }
 body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-column: 1 / -1; min-width: 0; }
 #workspaceReactRoot { display: none; }
 .workspace-react-toolbar { align-items: center; display: grid; gap: 12px; grid-template-columns: auto minmax(0, 1fr) auto auto; min-height: 48px; padding: 0 14px; }
@@ -71,6 +72,22 @@ body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-col
 .workspace-actions { justify-content: flex-end; }
 .workspace-layout-switch { background: #0d0f13; border: 1px solid var(--ui-border); border-radius: 8px; gap: 2px; padding: 2px; }
 .workspace-layout-switch .ui-button { min-width: 30px; }
+.workspace-react-drawer-layer { inset: 0; position: fixed; z-index: 30; }
+.workspace-react-drawer-backdrop { background: rgba(0, 0, 0, .58); border: 0; cursor: default; inset: 0; padding: 0; position: absolute; width: 100%; }
+.workspace-react-drawer { background: #101216; border-left: 1px solid var(--ui-border); box-shadow: -12px 0 32px rgba(0, 0, 0, .36); display: flex; flex-direction: column; height: 100%; margin-left: auto; max-width: min(520px, 94vw); position: relative; width: 100%; }
+.workspace-react-drawer-header { align-items: flex-start; border-bottom: 1px solid var(--ui-border); display: flex; gap: 10px; justify-content: space-between; padding: 16px; }
+.workspace-react-drawer-title { font-size: 15px; font-weight: 700; }
+.workspace-react-drawer-status { color: var(--ui-muted); font-size: 11px; margin-top: 4px; }
+.workspace-react-drawer-create { border-bottom: 1px solid var(--ui-border); display: flex; gap: 8px; padding: 12px 16px; }
+.workspace-react-drawer-create input { background: #0d0f13; border: 1px solid var(--ui-border); border-radius: 7px; color: var(--ui-text); min-width: 0; padding: 7px 9px; width: 100%; }
+.workspace-react-prompt-list { display: grid; gap: 8px; min-height: 0; overflow: auto; padding: 12px 16px 20px; }
+.workspace-react-prompt-card { background: rgba(17, 18, 23, .78); border: 1px solid var(--ui-border); border-radius: 9px; display: grid; gap: 7px; padding: 10px; }
+.workspace-react-prompt-card-header { align-items: center; display: flex; gap: 8px; justify-content: space-between; min-width: 0; }
+.workspace-react-prompt-card-header strong { font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-react-prompt-card time { color: var(--ui-muted); font-size: 10px; }
+.workspace-react-prompt-card p { color: var(--ui-text); font-size: 11px; line-height: 1.45; margin: 0; max-height: 180px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+.workspace-react-prompt-actions { display: flex; gap: 6px; }
+.workspace-react-drawer-empty { color: var(--ui-muted); font-size: 11px; padding: 18px 4px; text-align: center; }
 @media (max-width: 1100px) {
   .workspace-react-toolbar { grid-template-columns: auto minmax(0, 1fr) auto; }
   .workspace-actions { grid-column: 2 / -1; grid-row: 2; justify-content: flex-start; }

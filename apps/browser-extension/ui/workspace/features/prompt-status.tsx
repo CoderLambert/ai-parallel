@@ -6,6 +6,7 @@ export interface WorkspacePromptSummary {
   title: string;
   updatedAt: string;
   contentLength: number;
+  content: string;
 }
 
 function formatPromptDate(value: string) {
