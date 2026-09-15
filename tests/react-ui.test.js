@@ -51,6 +51,7 @@ test("React template library covers schema validation, import/export, editing, a
 test("Workspace React shell owns the generated toolbar and delegates legacy runtime actions", () => {
   const shell = read("ui", "workspace", "workspace-shell.tsx");
   const providerStrip = read("ui", "workspace", "features", "provider-strip.tsx");
+  const readinessPanel = read("ui", "workspace", "features", "provider-readiness-panel.tsx");
   const entrypoint = read("entrypoints", "workspace-shell.tsx");
   const workspaceHtml = read("workspace", "index.html");
   const legacyWorkspace = read("workspace", "workspace.js");
@@ -63,6 +64,12 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(providerStrip, /ProviderReadiness/);
   assert.match(providerStrip, /workspace-provider-readiness/);
   assert.match(providerStrip, /is-ready/);
+  assert.match(shell, /ProviderReadinessPanel/);
+  assert.match(shell, /triggerProviderPanelAction/);
+  assert.match(readinessPanel, /ProviderPanelAction/);
+  assert.match(readinessPanel, /reload/);
+  assert.match(readinessPanel, /open/);
+  assert.match(readinessPanel, /workspace-provider-readiness-card/);
   assert.match(shell, /sessionBtn/);
   assert.match(shell, /promptLibraryBtn/);
   assert.match(shell, /templateLibraryBtn/);

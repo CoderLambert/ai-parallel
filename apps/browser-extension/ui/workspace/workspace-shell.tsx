@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { ProviderDescriptor, ProviderId } from "../../contracts/provider";
 import { Button } from "../components/button";
 import { ProviderStrip, type ProviderReadiness } from "./features/provider-strip";
+import { ProviderReadinessPanel, type ProviderPanelAction } from "./features/provider-readiness-panel";
 import { WorkspaceActions, type WorkspaceAction } from "./features/workspace-actions";
 
 const providers = globalThis.AIParallelProviderCatalog;
@@ -47,6 +48,13 @@ function emitSelection(providerIds: readonly ProviderId[]) {
 
 function triggerLegacyAction(action: WorkspaceAction) {
   document.getElementById(legacyActionIds[action])?.click();
+}
+
+function triggerProviderPanelAction(providerId: ProviderId, action: ProviderPanelAction) {
+  const panel = [...document.querySelectorAll<HTMLElement>(".provider-panel")]
+    .find((candidate) => candidate.dataset.providerId === providerId);
+  const buttonClass = action === "reload" ? ".reload-btn" : ".open-btn";
+  panel?.querySelector<HTMLButtonElement>(buttonClass)?.click();
 }
 
 export function WorkspaceShell() {
@@ -108,6 +116,12 @@ export function WorkspaceShell() {
           </Button>
         ))}
       </div>
+      <ProviderReadinessPanel
+        providers={providers}
+        selected={selected}
+        readiness={readiness}
+        onAction={triggerProviderPanelAction}
+      />
     </div>
   );
 }

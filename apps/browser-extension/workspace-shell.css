@@ -14,6 +14,14 @@ body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-col
 .workspace-provider-readiness.is-loading { background: #facc15; }
 .workspace-provider-readiness.is-pending { background: #818cf8; }
 .workspace-provider-strip .ui-badge { flex: 0 0 auto; }
+.workspace-provider-readiness-panel { display: grid; gap: 6px; grid-column: 1 / -1; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); min-width: 0; padding: 0 14px 8px; }
+.workspace-provider-readiness-card { align-items: center; background: rgba(17, 18, 23, .78); border: 1px solid var(--ui-border); border-radius: 9px; display: flex; gap: 8px; min-width: 0; padding: 6px 8px; }
+.workspace-provider-readiness-copy { display: grid; gap: 2px; min-width: 0; }
+.workspace-provider-readiness-copy strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-provider-readiness-copy span { color: var(--ui-muted); font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-provider-readiness-actions { display: flex; gap: 2px; margin-left: auto; }
+.workspace-provider-readiness-actions .ui-button { min-width: 26px; padding-left: 5px; padding-right: 5px; }
+.workspace-provider-readiness-empty { color: var(--ui-muted); font-size: 11px; grid-column: 1 / -1; padding: 0 2px 8px; }
 .workspace-actions { justify-content: flex-end; }
 .workspace-layout-switch { background: #0d0f13; border: 1px solid var(--ui-border); border-radius: 8px; gap: 2px; padding: 2px; }
 .workspace-layout-switch .ui-button { min-width: 30px; }

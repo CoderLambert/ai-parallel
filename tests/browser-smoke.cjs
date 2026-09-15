@@ -58,6 +58,9 @@ async function run() {
 
     await page.waitForFunction(() => document.querySelectorAll("#providerBar .provider-chip").length === 8);
     assert.equal(await page.locator("#providerBar .provider-chip").count(), 8);
+    await page.locator(".workspace-provider-readiness-card").first().waitFor({ state: "visible" });
+    const readinessCardCount = await page.locator(".workspace-provider-readiness-card").count();
+    assert.ok(readinessCardCount > 0 && readinessCardCount <= 8);
     assert.equal(await page.locator("#sendBtn").isDisabled(), true);
     const workspaceAction = (label) => page.locator(".workspace-actions .ui-button", { hasText: label });
 
