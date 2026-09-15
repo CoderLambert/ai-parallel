@@ -143,6 +143,18 @@ function workspaceLibraryState() {
   };
 }
 
+function workspaceSessionState() {
+  return sessionEntries
+    .filter((entry) => entry && typeof entry.id === "string" && entry.id)
+    .map((entry) => ({
+      id: entry.id,
+      title: typeof entry.title === "string" ? entry.title : "Untitled Session",
+      updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : (typeof entry.createdAt === "string" ? entry.createdAt : ""),
+      providerCount: Array.isArray(entry.selectedProviders) ? entry.selectedProviders.length : 0,
+      promptLength: typeof entry.prompt === "string" ? entry.prompt.length : 0
+    }));
+}
+
 function notifyWorkspaceShell() {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state", {
     detail: {
@@ -150,7 +162,8 @@ function notifyWorkspaceShell() {
       workspaceLayout: currentLayout,
       providerStates: workspaceProviderStates(),
       compare: workspaceCompareState(),
-      libraries: workspaceLibraryState()
+      libraries: workspaceLibraryState(),
+      sessions: workspaceSessionState()
     }
   }));
 }
