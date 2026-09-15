@@ -79,7 +79,8 @@ jobs:
         run: |
           archive="$(find dist -maxdepth 1 -type f -name '*browser-extension-v*.zip' -print -quit)"
           test -n "$archive"
-          sha256sum -c "$archive.sha256"
+          archive_name="$(basename "$archive")"
+          (cd dist && sha256sum -c "$archive_name.sha256")
           unzip -t "$archive"
 
       - name: Upload ${{ matrix.browser }} artifact

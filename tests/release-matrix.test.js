@@ -44,3 +44,13 @@ test("release workflow builds only credential-free artifacts for the browser mat
   assert.match(workflow, /actions\/upload-artifact@v4/);
   assert.doesNotMatch(workflow, /AI_PARALLEL_SMOKE_|password|storageState|credentials/i);
 });
+
+test("browser smoke is an explicit final check against the generated Chrome artifact", () => {
+  const workflow = read(".github", "workflows", "browser-smoke.yml");
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /^\s+(push|pull_request):/m);
+  assert.match(workflow, /pnpm install --frozen-lockfile/);
+  assert.match(workflow, /pnpm build:chrome/);
+  assert.match(workflow, /AI_PARALLEL_EXTENSION_ROOT: dist\/chrome-mv3/);
+  assert.match(workflow, /AI_PARALLEL_BROWSER_HEADLESS: "true"/);
+});
