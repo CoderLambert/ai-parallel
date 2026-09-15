@@ -53,6 +53,7 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   const providerStrip = read("ui", "workspace", "features", "provider-strip.tsx");
   const readinessPanel = read("ui", "workspace", "features", "provider-readiness-panel.tsx");
   const compareStatus = read("ui", "workspace", "features", "compare-status.tsx");
+  const handoffStatus = read("ui", "workspace", "features", "handoff-status.tsx");
   const libraryStatus = read("ui", "workspace", "features", "library-status.tsx");
   const sessionStatus = read("ui", "workspace", "features", "session-status.tsx");
   const promptStatus = read("ui", "workspace", "features", "prompt-status.tsx");
@@ -80,6 +81,10 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(compareStatus, /responseCount/);
   assert.match(compareStatus, /pendingCount/);
   assert.doesNotMatch(compareStatus, /responseBundles|response\.content|iframe/);
+  assert.match(shell, /HandoffStatus/);
+  assert.match(handoffStatus, /responseCount/);
+  assert.match(handoffStatus, /Agent Handoff/);
+  assert.doesNotMatch(handoffStatus, /responseBundles|response\.content|contextPackage|iframe/);
   assert.match(shell, /LibraryStatus/);
   assert.match(shell, /libraries/);
   assert.match(libraryStatus, /WorkspaceLibrarySummary/);

@@ -4,6 +4,7 @@ import { Button } from "../components/button";
 import { ProviderStrip, type ProviderReadiness } from "./features/provider-strip";
 import { ProviderReadinessPanel, type ProviderPanelAction } from "./features/provider-readiness-panel";
 import { CompareStatus, type CompareSummary } from "./features/compare-status";
+import { HandoffStatus } from "./features/handoff-status";
 import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
 import { PromptStatus, type WorkspacePromptSummary } from "./features/prompt-status";
 import { SessionStatus, type WorkspaceSessionSummary } from "./features/session-status";
@@ -233,6 +234,7 @@ export function WorkspaceShell() {
         onAction={triggerProviderPanelAction}
       />
       <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => triggerLegacyAction("compare")} />
+      <HandoffStatus responseCount={compare.responseCount} onOpen={() => triggerLegacyAction("compare")} />
       <SessionStatus sessions={sessions} onOpen={() => triggerLegacyAction("session")} />
       <PromptStatus prompts={prompts} onOpen={() => triggerLegacyAction("prompt")} />
       <TemplateStatus templates={templates} onOpen={() => triggerLegacyAction("template")} />
