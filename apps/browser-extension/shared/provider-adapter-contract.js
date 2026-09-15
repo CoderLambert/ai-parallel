@@ -19,18 +19,29 @@
     }
   }
 
-  function createProviderAdapter({ provider, transport } = {}) {
+  function assertProvider(provider) {
     if (!provider || typeof provider.id !== "string" || !provider.id) {
       throw new TypeError("Provider adapter requires provider metadata");
     }
     if (typeof provider.adapter !== "string" || !provider.adapter) {
       throw new TypeError("Provider metadata requires an adapter identifier");
     }
+    if (provider.adapterContract !== CONTRACT_VERSION) {
+      throw new TypeError(`Provider ${provider.id} requires adapter contract ${CONTRACT_VERSION}`);
+    }
+    if (!provider.capabilities || typeof provider.capabilities !== "object") {
+      throw new TypeError(`Provider ${provider.id} requires capability metadata`);
+    }
+  }
+
+  function createProviderAdapter({ provider, transport } = {}) {
+    assertProvider(provider);
     assertTransport(transport);
 
     const adapter = {
       id: provider.adapter,
       providerId: provider.id,
+      contractVersion: CONTRACT_VERSION,
       mode: provider.mode,
       capabilities: provider.capabilities,
       async sendPrompt(prompt, context = {}) {
@@ -52,12 +63,21 @@
     return Object.freeze(adapter);
   }
 
-  function validateProviderAdapter(adapter) {
-    return Boolean(
+  function validateProviderAdapter(adapter, provider) {
+    const validShape = Boolean(
       adapter
       && typeof adapter.id === "string"
       && typeof adapter.providerId === "string"
+      && adapter.contractVersion === CONTRACT_VERSION
       && REQUIRED_METHODS.every((method) => typeof adapter[method] === "function")
+    );
+    if (!validShape || !provider) return validShape;
+    return Boolean(
+      adapter.id === provider.adapter
+      && adapter.providerId === provider.id
+      && provider.adapterContract === CONTRACT_VERSION
+      && adapter.mode === provider.mode
+      && adapter.capabilities === provider.capabilities
     );
   }
 
