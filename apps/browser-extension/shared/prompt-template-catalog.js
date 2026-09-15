@@ -1,6 +1,9 @@
+// @ts-check
+
 (() => {
   const utils = globalThis.AIParallelPromptTemplateUtils;
 
+  /** @type {import("../contracts/template").PromptTemplateCategory[]} */
   const categories = [
     { id: "translation", name: "翻译", description: "翻译、术语和本地化任务" },
     { id: "code", name: "代码", description: "代码格式化、解释和重构任务" },
@@ -13,6 +16,7 @@
     { id: "custom", name: "自定义", description: "用户导入或创建的模板" }
   ];
 
+  /** @type {import("../contracts/template").PromptTemplate[]} */
   const templates = [
     {
       $schema: utils.DRAFT_URI,

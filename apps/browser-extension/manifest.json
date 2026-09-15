@@ -65,6 +65,7 @@
         "content/providers/claude.js",
         "content/providers/gemini.js",
         "content/providers/grok.js",
+        "shared/contract-runtime.js",
         "content/frame-bridge.js"
       ],
       "run_at": "document_idle",

@@ -1,4 +1,7 @@
+// @ts-check
+
 (() => {
+  /** @type {import("../contracts/provider").ProviderDescriptor[]} */
   const providers = [
     {
       id: "chatgpt",

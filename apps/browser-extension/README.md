@@ -83,6 +83,17 @@ node tests/browser-smoke.cjs
 The smoke remains credential-free. Provider authentication and live Provider
 checks stay in the protected authenticated smoke workflow.
 
+## Shared contracts
+
+`contracts/` contains the strict TypeScript vocabulary for Provider IDs and
+adapter results, bridge messages, local Storage records, JSON Schema-backed
+prompt templates, and portable template packages. The legacy runtime remains
+JavaScript-compatible, but `shared/contract-runtime.js` validates the same
+message unions at every workspace/Provider boundary and
+`shared/storage-contract.js` rejects unknown or malformed persisted fields.
+Response snapshots are intentionally not part of the persistent Storage
+contract; they remain an in-memory Workspace concern.
+
 Grok authentication and chat run in a top-level browser tab because `accounts.x.ai`
 does not permit iframe login and Grok's real-time WebSocket is not iframe-safe. AI
 Parallel reuses that tab for prompt dispatch, response collection, and handoff.

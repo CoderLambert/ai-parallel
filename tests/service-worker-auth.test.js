@@ -18,7 +18,7 @@ function loadServiceWorker() {
         getURL: (value) => `chrome-extension://test/${value}`,
         onMessage: { addListener(listener) { messageListener = listener; } }
       },
-      storage: { local: { async get() { return {}; } } },
+      storage: { local: { async get() { return {}; }, async set() {}, async remove() {} } },
       tabs: {
         async create({ url }) {
           openedUrls.push(url);
@@ -53,9 +53,9 @@ function loadServiceWorker() {
   return { messageListener, openedUrls, sentMessages };
 }
 
-function sendMessage(listener, message) {
+function sendMessage(listener, message, sender = { url: "chrome-extension://test/workspace/index.html" }) {
   return new Promise((resolve) => {
-    assert.equal(listener(message, {}, resolve), true);
+    assert.equal(listener(message, sender, resolve), true);
   });
 }
 
@@ -84,6 +84,28 @@ test("Grok authentication only opens allowlisted HTTPS URLs", async () => {
   });
   assert.equal(insecure.ok, false);
   assert.equal(openedUrls.length, 1);
+});
+
+test("provider content-script authentication requests are sender-scoped", async () => {
+  const { messageListener, openedUrls } = loadServiceWorker();
+  const fromGrok = await sendMessage(messageListener, {
+    type: "OPEN_PROVIDER_AUTH",
+    providerId: "grok",
+    url: "https://accounts.x.ai/sign-in"
+  }, {
+    tab: { id: 7, url: "https://grok.com/" }
+  });
+  assert.equal(fromGrok.ok, true);
+
+  const fromOtherProvider = await sendMessage(messageListener, {
+    type: "OPEN_PROVIDER_AUTH",
+    providerId: "grok",
+    url: "https://accounts.x.ai/sign-in"
+  }, {
+    tab: { id: 8, url: "https://example.com/" }
+  });
+  assert.equal(fromOtherProvider.ok, false);
+  assert.deepEqual(openedUrls, ["https://accounts.x.ai/sign-in"]);
 });
 
 test("Grok tab mode reuses the official top-level tab", async () => {

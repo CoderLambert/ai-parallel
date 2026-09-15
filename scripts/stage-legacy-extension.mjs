@@ -12,6 +12,8 @@ const files = [
   "popup.css",
   "popup.js",
   "service-worker.js",
+  "shared/contract-runtime.js",
+  "shared/storage-contract.js",
   "workspace/index.html",
   "workspace/workspace.css",
   "workspace/workspace.js",

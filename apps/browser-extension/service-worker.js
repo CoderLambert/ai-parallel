@@ -1,4 +1,8 @@
 importScripts("shared/provider-catalog.js");
+importScripts("shared/contract-runtime.js", "shared/storage-contract.js");
+
+const contractRuntime = globalThis.AIParallelContractRuntime;
+const storage = globalThis.AIParallelStorageContract.createLocalStorage();
 
 const PROVIDERS = {
   ...Object.fromEntries(globalThis.AIParallelProviderCatalog.map((provider) => [
@@ -27,6 +31,22 @@ function matchesProviderTab(tab, provider) {
   } catch {
     return false;
   }
+}
+
+function isExtensionSender(sender) {
+  if (typeof sender?.url !== "string") return false;
+  try {
+    return new URL(sender.url).origin === new URL(chrome.runtime.getURL("/")).origin;
+  } catch {
+    return false;
+  }
+}
+
+function isAllowedMessageSender(message, sender) {
+  if (isExtensionSender(sender)) return true;
+  if (message?.type !== "OPEN_PROVIDER_AUTH") return false;
+  const provider = PROVIDERS[message.providerId];
+  return Boolean(provider && matchesProviderTab(sender?.tab, provider));
 }
 
 async function ensureProviderTab(providerId, { active = false } = {}) {
@@ -61,7 +81,9 @@ async function deliverProviderCommand(tabId, message, attempts) {
 async function sendProviderTabCommand(providerId, command) {
   const provider = PROVIDERS[providerId];
   if (!provider?.tabMode) throw new Error("Provider does not support tab mode");
-  if (!PROVIDER_COMMANDS.has(command?.type)) throw new Error("Unknown provider command");
+  if (!PROVIDER_COMMANDS.has(command?.type) || !contractRuntime.isProviderCommand(command)) {
+    throw new Error("Invalid provider command");
+  }
 
   const { tab, created } = await ensureProviderTab(providerId);
   const message = { type: "AI_PARALLEL_TAB_COMMAND", providerId, command };
@@ -88,8 +110,8 @@ async function ensureWorkspace() {
 
 async function forwardPendingLaunch(tab) {
   if (!tab?.id) return;
-  const data = await chrome.storage.local.get("pendingLaunch");
-  if (!data.pendingLaunch) return;
+  const data = await storage.get("pendingLaunch");
+  if (!contractRuntime.isPendingLaunch(data.pendingLaunch)) return;
   chrome.tabs.sendMessage(tab.id, { type: "RUN_PENDING_LAUNCH", pending: data.pendingLaunch }).catch(() => {
     // A newly created workspace may not have loaded its listener yet. It will
     // consume pendingLaunch during its own initialization.
@@ -102,8 +124,8 @@ chrome.action.onClicked.addListener(() => {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
-    if (!message || typeof message.type !== "string") {
-      sendResponse({ ok: false, error: "Invalid message" });
+    if (!contractRuntime.isServiceWorkerRequest(message) || !isAllowedMessageSender(message, _sender)) {
+      sendResponse(contractRuntime.invalidMessage());
       return;
     }
 

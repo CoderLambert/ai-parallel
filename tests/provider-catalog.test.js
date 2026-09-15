@@ -72,4 +72,10 @@ test("extension entry points load the catalog before consuming it", () => {
   assert.match(workspaceHtml, /\.\.\/shared\/provider-adapter-contract\.js[\s\S]*workspace\.js/);
   assert.match(workspaceHtml, /\.\.\/shared\/provider-task-runtime\.js[\s\S]*workspace\.js/);
   assert.match(serviceWorker, /^importScripts\("shared\/provider-catalog\.js"\);/);
+  assert.match(serviceWorker, /importScripts\("shared\/contract-runtime\.js", "shared\/storage-contract\.js"\);/);
+  assert.match(workspaceHtml, /\.\.\/shared\/contract-runtime\.js[\s\S]*\.\.\/shared\/storage-contract\.js[\s\S]*workspace\.js/);
+  assert.match(popupHtml, /shared\/contract-runtime\.js[\s\S]*shared\/storage-contract\.js[\s\S]*popup\.js/);
+  const manifest = JSON.parse(fs.readFileSync(path.join(extensionRoot, "manifest.json"), "utf8"));
+  const contentScripts = manifest.content_scripts[0].js;
+  assert.ok(contentScripts.indexOf("shared/contract-runtime.js") < contentScripts.indexOf("content/frame-bridge.js"));
 });

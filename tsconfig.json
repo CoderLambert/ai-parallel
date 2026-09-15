@@ -1,9 +1,17 @@
 {
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
     "strict": true,
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["wxt.config.ts"]
+  "include": [
+    "wxt.config.ts",
+    "apps/browser-extension/contracts/**/*.ts",
+    "apps/browser-extension/shared/provider-catalog.js",
+    "apps/browser-extension/shared/prompt-template-catalog.js",
+    "apps/browser-extension/shared/provider-adapter-contract.js"
+  ]
 }

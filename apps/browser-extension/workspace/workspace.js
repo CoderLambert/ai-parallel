@@ -1,6 +1,8 @@
 const PROVIDERS = globalThis.AIParallelProviderCatalog;
 const PROMPT_TEMPLATES = globalThis.AIParallelPromptTemplateCatalog;
 const promptTemplateUtils = globalThis.AIParallelPromptTemplateUtils;
+const contractRuntime = globalThis.AIParallelContractRuntime;
+const storage = globalThis.AIParallelStorageContract.createLocalStorage();
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";
 const providerAdapterContract = globalThis.AIParallelProviderAdapterContract;
@@ -144,7 +146,7 @@ function renderProviderBar() {
       if (selected.has(provider.id)) selected.delete(provider.id);
       else selected.add(provider.id);
       if (!selected.has(provider.id)) responseBundles.delete(provider.id);
-      await chrome.storage.local.set({ selectedProviders: [...selected] });
+      await storage.set({ selectedProviders: [...selected] });
       renderProviderBar();
       renderPanels();
       renderResponses();
@@ -160,6 +162,7 @@ function postToFrame(providerId, payload) {
   const iframe = panel?.querySelector("iframe");
   if (!provider || !iframe?.contentWindow) return false;
   const message = { ...payload, context: MESSAGE_CONTEXT, providerId };
+  if (!contractRuntime.isFrameCommandMessage(message, providerId)) return false;
   for (const origin of providerOrigins(provider)) {
     iframe.contentWindow.postMessage(message, origin);
   }
@@ -171,10 +174,13 @@ function pingFrame(providerId) {
 }
 
 async function openProviderTab(provider) {
-  const result = await chrome.runtime.sendMessage({
+  const request = {
     type: "OPEN_PROVIDER_TAB",
     providerId: provider.id
-  });
+  };
+  if (!contractRuntime.isServiceWorkerRequest(request)) throw new Error("Invalid provider request");
+  const result = await chrome.runtime.sendMessage(request);
+  if (!contractRuntime.isServiceWorkerResponse(result)) throw new Error("Invalid provider response");
   if (!result?.ok) throw new Error(result?.error || "无法打开模型页面");
   return result;
 }
@@ -307,6 +313,7 @@ window.addEventListener("message", (event) => {
   if (!event.data || event.data.context !== MESSAGE_CONTEXT) return;
   const providerId = findProviderForMessage(event);
   if (!providerId || event.data.providerId !== providerId) return;
+  if (!contractRuntime.isFrameToWorkspaceMessage(event.data, providerId)) return;
 
   if (event.data.type === "AI_PARALLEL_FRAME_READY") {
     setPanelState(providerId, "Ready", { ready: true });
@@ -465,17 +472,21 @@ async function requestProviderMessage(providerId, type, payload = {}, timeoutMs 
   if (provider?.mode !== "tab") return requestFrameMessage(providerId, type, payload, timeoutMs, signal);
 
   const requestId = crypto.randomUUID();
+  const request = {
+    type: "PROVIDER_TAB_COMMAND",
+    providerId,
+    command: { type, requestId, ...payload }
+  };
+  if (!contractRuntime.isServiceWorkerRequest(request)) {
+    return { ok: false, error: "Invalid provider command", code: "INVALID_MESSAGE", retryable: false };
+  }
   const timeoutMarker = Symbol("provider-request-timeout");
   const abortMarker = Symbol("provider-request-abort");
   let timer;
   let abortListener;
   try {
     const result = await Promise.race([
-      chrome.runtime.sendMessage({
-        type: "PROVIDER_TAB_COMMAND",
-        providerId,
-        command: { type, requestId, ...payload }
-      }),
+      chrome.runtime.sendMessage(request),
       new Promise((resolve) => {
         timer = setTimeout(() => resolve(timeoutMarker), timeoutMs + 250);
       }),
@@ -493,6 +504,9 @@ async function requestProviderMessage(providerId, type, payload = {}, timeoutMs 
         code: "REQUEST_TIMEOUT",
         retryable: true
       };
+    }
+    if (!contractRuntime.isServiceWorkerResponse(result)) {
+      return { ok: false, error: "Invalid provider response", code: "INVALID_MESSAGE", retryable: false };
     }
     return result?.ok === true
       ? result
@@ -604,7 +618,7 @@ async function dispatchPrompt() {
   for (const id of selected) setPanelState(id, "Sending…");
 
   try {
-    await chrome.storage.local.set({ draftPrompt: promptInput.value });
+    await storage.set({ draftPrompt: promptInput.value });
     const pairs = await Promise.all([...selected].map(async (providerId) => [
       providerId,
       await sendPromptToProvider(providerId, prompt)
@@ -879,7 +893,7 @@ function renderPromptLibrary() {
 }
 
 async function loadPromptLibrary() {
-  const data = await chrome.storage.local.get(PROMPT_LIBRARY_KEY);
+  const data = await storage.get(PROMPT_LIBRARY_KEY);
   promptLibraryEntries = Array.isArray(data[PROMPT_LIBRARY_KEY])
     ? data[PROMPT_LIBRARY_KEY].filter((entry) => entry && typeof entry.content === "string").slice(0, 50)
     : [];
@@ -930,7 +944,7 @@ function normalizeStoredTemplates(entries) {
 }
 
 async function persistUserTemplates() {
-  await chrome.storage.local.set({ [PROMPT_TEMPLATES_KEY]: userTemplateEntries.slice(0, MAX_USER_TEMPLATES) });
+  await storage.set({ [PROMPT_TEMPLATES_KEY]: userTemplateEntries.slice(0, MAX_USER_TEMPLATES) });
 }
 
 function populateTemplateCategories() {
@@ -1024,7 +1038,7 @@ function renderTemplateLibrary() {
 }
 
 async function loadTemplateLibrary() {
-  const data = await chrome.storage.local.get(PROMPT_TEMPLATES_KEY);
+  const data = await storage.get(PROMPT_TEMPLATES_KEY);
   userTemplateEntries = normalizeStoredTemplates(data[PROMPT_TEMPLATES_KEY]);
   populateTemplateCategories();
   renderTemplateLibrary();
@@ -1266,7 +1280,7 @@ async function applyTemplateForm(runImmediately = false) {
   applyingTemplatePrompt = true;
   promptInput.value = result.prompt;
   applyingTemplatePrompt = false;
-  await chrome.storage.local.set({ draftPrompt: promptInput.value });
+  await storage.set({ draftPrompt: promptInput.value });
   autosizeComposer();
   updateMeta();
   showError("");
@@ -1319,7 +1333,7 @@ function renderSessions() {
 }
 
 async function loadSessions() {
-  const data = await chrome.storage.local.get(SESSION_KEY);
+  const data = await storage.get(SESSION_KEY);
   sessionEntries = Array.isArray(data[SESSION_KEY])
     ? data[SESSION_KEY].filter((entry) => (
       entry
@@ -1375,7 +1389,7 @@ async function saveCurrentSession() {
     updatedAt: now
   };
   sessionEntries = [entry, ...sessionEntries].slice(0, MAX_SESSIONS);
-  await chrome.storage.local.set({ [SESSION_KEY]: sessionEntries });
+  await storage.set({ [SESSION_KEY]: sessionEntries });
   sessionTitleInput.value = "";
   renderSessions();
   sessionStatus.textContent = "Session 已保存；回答不会随 Session 保存";
@@ -1383,7 +1397,7 @@ async function saveCurrentSession() {
 
 async function deleteSession(id) {
   sessionEntries = sessionEntries.filter((entry) => entry.id !== id);
-  await chrome.storage.local.set({ [SESSION_KEY]: sessionEntries });
+  await storage.set({ [SESSION_KEY]: sessionEntries });
   renderSessions();
   sessionStatus.textContent = "Session 已删除";
 }
@@ -1400,7 +1414,7 @@ async function loadSession(entry) {
   promptInput.value = entry.prompt;
   currentLayout = ["auto", "1", "2", "3"].includes(entry.workspaceLayout) ? entry.workspaceLayout : "auto";
   responseBundles.clear();
-  await chrome.storage.local.set({
+  await storage.set({
     draftPrompt: promptInput.value,
     selectedProviders: providerIds,
     workspaceLayout: currentLayout
@@ -1435,7 +1449,7 @@ async function saveCurrentPrompt() {
     updatedAt: now
   };
   promptLibraryEntries = [entry, ...promptLibraryEntries].slice(0, 50);
-  await chrome.storage.local.set({ [PROMPT_LIBRARY_KEY]: promptLibraryEntries });
+  await storage.set({ [PROMPT_LIBRARY_KEY]: promptLibraryEntries });
   promptTitleInput.value = "";
   renderPromptLibrary();
   promptLibraryStatus.textContent = "Prompt 已保存";
@@ -1443,7 +1457,7 @@ async function saveCurrentPrompt() {
 
 async function deletePrompt(id) {
   promptLibraryEntries = promptLibraryEntries.filter((entry) => entry.id !== id);
-  await chrome.storage.local.set({ [PROMPT_LIBRARY_KEY]: promptLibraryEntries });
+  await storage.set({ [PROMPT_LIBRARY_KEY]: promptLibraryEntries });
   renderPromptLibrary();
   promptLibraryStatus.textContent = "Prompt 已删除";
 }
@@ -1451,7 +1465,7 @@ async function deletePrompt(id) {
 function usePrompt(entry) {
   activeTemplate = null;
   promptInput.value = entry.content;
-  chrome.storage.local.set({ draftPrompt: promptInput.value }).catch(() => {});
+  storage.set({ draftPrompt: promptInput.value }).catch(() => {});
   autosizeComposer();
   updateMeta();
   showError("");
@@ -1527,7 +1541,7 @@ async function sendToAgent() {
   const target = handoffTarget.value;
   if (!selected.has(target)) {
     selected.add(target);
-    await chrome.storage.local.set({ selectedProviders: [...selected] });
+    await storage.set({ selectedProviders: [...selected] });
     renderProviderBar();
     renderPanels();
     updateMeta();
@@ -1547,7 +1561,7 @@ async function sendToAgent() {
 }
 
 async function runPendingLaunch(pending) {
-  if (pendingLaunchRunning || !pending || typeof pending.prompt !== "string" || !pending.prompt.trim()) return false;
+  if (pendingLaunchRunning || !contractRuntime.isPendingLaunch(pending)) return false;
   const providerIds = Array.isArray(pending.providerIds)
     ? pending.providerIds.filter((id) => providerById(id))
     : [];
@@ -1558,11 +1572,11 @@ async function runPendingLaunch(pending) {
     selected = new Set(providerIds);
     activeTemplate = null;
     promptInput.value = pending.prompt;
-    await chrome.storage.local.set({
+    await storage.set({
       draftPrompt: promptInput.value,
       selectedProviders: providerIds
     });
-    await chrome.storage.local.remove("pendingLaunch");
+    await storage.remove("pendingLaunch");
     renderProviderBar();
     renderPanels();
     renderResponses();
@@ -1606,7 +1620,7 @@ function autosizeComposer() {
 
 promptInput.addEventListener("input", () => {
   if (!applyingTemplatePrompt) activeTemplate = null;
-  chrome.storage.local.set({ draftPrompt: promptInput.value }).catch(() => {});
+  storage.set({ draftPrompt: promptInput.value }).catch(() => {});
   showError(runtimeUpgradeWarning);
   autosizeComposer();
   updateMeta();
@@ -1670,7 +1684,7 @@ sendAgentBtn.addEventListener("click", () => sendToAgent().catch((error) => {
 }));
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type !== "RUN_PENDING_LAUNCH") return;
+  if (!contractRuntime.isRunPendingLaunchMessage(message)) return;
   runPendingLaunch(message.pending)
     .then((ok) => sendResponse({ ok }))
     .catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) }));
@@ -1682,13 +1696,13 @@ document.querySelectorAll(".layout-switch button").forEach((button) => {
     currentLayout = button.dataset.layout;
     panelGrid.dataset.layout = currentLayout;
     document.querySelectorAll(".layout-switch button").forEach((item) => item.classList.toggle("active", item === button));
-    await chrome.storage.local.set({ workspaceLayout: currentLayout });
+    await storage.set({ workspaceLayout: currentLayout });
   });
 });
 
 async function init() {
   await ensureFramingRules();
-  const data = await chrome.storage.local.get(["selectedProviders", "draftPrompt", "workspaceLayout", "pendingLaunch"]);
+  const data = await storage.get(["selectedProviders", "draftPrompt", "workspaceLayout", "pendingLaunch"]);
   const pendingLaunch = data.pendingLaunch && typeof data.pendingLaunch === "object" ? data.pendingLaunch : null;
   selected = new Set(Array.isArray(data.selectedProviders)
     ? data.selectedProviders.filter((id) => providerById(id))
