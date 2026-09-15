@@ -45,6 +45,41 @@ async function run() {
     await page.locator("#promptInput").fill("CI browser smoke prompt");
     assert.equal(await page.locator("#sendBtn").isDisabled(), false);
 
+    await page.locator("#templateLibraryBtn").click();
+    assert.equal(await page.locator("#templateList .template-card").count(), 3);
+    assert.ok((await page.locator("#templateCategorySelect option").count()) >= 4);
+    await page.locator("#templateList .template-card").first().locator("button").first().click();
+    assert.equal(await page.locator("#templateFormDialog").getAttribute("open"), "");
+    await page.locator("#templateFormFields [name='sourceText']").fill("Keep the original structure.");
+    await page.locator("#templateFormFields [name='targetLanguage']").selectOption("简体中文");
+    await page.locator("#insertTemplateBtn").click();
+    assert.match(await page.locator("#promptInput").inputValue(), /Keep the original structure/);
+    assert.match(await page.locator("#promptInput").inputValue(), /Output Contract/);
+
+    const importedTemplate = {
+      kind: "ai-parallel.prompt-template",
+      schemaVersion: 1,
+      id: "user.browser-smoke-template",
+      version: 1,
+      name: "Browser smoke template",
+      categoryId: "custom",
+      description: "Imported by browser smoke",
+      promptTemplate: "Review {{text}}",
+      inputSchema: {
+        type: "object",
+        properties: { text: { type: "string", minLength: 1 } },
+        required: ["text"],
+        additionalProperties: false
+      },
+      output: { mode: "text" }
+    };
+    await page.locator("#templateImportInput").setInputFiles({
+      name: "browser-smoke-template.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(importedTemplate))
+    });
+    await page.locator("#templateList").getByText("Browser smoke template").waitFor({ state: "visible" });
+
     await page.locator("#sessionBtn").click();
     await page.locator("#sessionTitleInput").fill("CI smoke session");
     await page.locator("#saveSessionBtn").click();

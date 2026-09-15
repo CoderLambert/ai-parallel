@@ -1,10 +1,14 @@
 const PROVIDERS = globalThis.AIParallelProviderCatalog;
+const PROMPT_TEMPLATES = globalThis.AIParallelPromptTemplateCatalog;
+const promptTemplateUtils = globalThis.AIParallelPromptTemplateUtils;
 
 const MESSAGE_CONTEXT = "ai-parallel-workspace";
 const providerAdapterContract = globalThis.AIParallelProviderAdapterContract;
 const PROMPT_LIBRARY_KEY = "promptLibrary";
+const PROMPT_TEMPLATES_KEY = "promptTemplatesV1";
 const SESSION_KEY = "workspaceSessions";
 const MAX_SESSIONS = 20;
+const MAX_USER_TEMPLATES = 100;
 const providerTaskRuntime = globalThis.AIParallelProviderTaskRuntime.createProviderTaskRuntime({
   defaultTimeoutMs: 30000,
   defaultMaxAttempts: 1
@@ -43,6 +47,27 @@ const promptLibraryStatus = $("#promptLibraryStatus");
 const promptTitleInput = $("#promptTitleInput");
 const savePromptBtn = $("#savePromptBtn");
 const promptList = $("#promptList");
+const templateLibraryBtn = $("#templateLibraryBtn");
+const templateLibraryDrawer = $("#templateLibraryDrawer");
+const closeTemplateLibraryBtn = $("#closeTemplateLibraryBtn");
+const templateLibraryStatus = $("#templateLibraryStatus");
+const templateCategorySelect = $("#templateCategorySelect");
+const templateSearchInput = $("#templateSearchInput");
+const templateList = $("#templateList");
+const importTemplateBtn = $("#importTemplateBtn");
+const copyTemplateSchemaBtn = $("#copyTemplateSchemaBtn");
+const exportTemplatesBtn = $("#exportTemplatesBtn");
+const templateImportInput = $("#templateImportInput");
+const templateFormDialog = $("#templateFormDialog");
+const templateForm = $("#templateForm");
+const templateFormTitle = $("#templateFormTitle");
+const templateFormDescription = $("#templateFormDescription");
+const templateFormFields = $("#templateFormFields");
+const templateFormError = $("#templateFormError");
+const templatePromptPreview = $("#templatePromptPreview");
+const closeTemplateFormBtn = $("#closeTemplateFormBtn");
+const insertTemplateBtn = $("#insertTemplateBtn");
+const runTemplateBtn = $("#runTemplateBtn");
 const workspaceUtils = globalThis.AIParallelWorkspaceUtils;
 const panels = new Map();
 const providerAdapters = new Map();
@@ -50,15 +75,26 @@ const pendingRequests = new Map();
 const responseBundles = new Map();
 const pendingCollections = new Set();
 let promptLibraryEntries = [];
+let userTemplateEntries = [];
 let sessionEntries = [];
 let selected = new Set();
 let currentLayout = "auto";
 let runtimeUpgradeWarning = "";
 let pendingLaunchRunning = false;
 let dispatchInFlight = false;
+let activeTemplate = null;
+let templateFormTemplate = null;
+let templateFormValues = {};
+let applyingTemplatePrompt = false;
 
 function providerById(id) {
   return PROVIDERS.find((provider) => provider.id === id);
+}
+
+function schemaProperties(schema) {
+  return schema && typeof schema === "object" && schema.properties && typeof schema.properties === "object"
+    ? schema.properties
+    : {};
 }
 
 function providerOrigins(provider) {
@@ -636,17 +672,51 @@ function renderResponses() {
     const title = document.createElement("span");
     title.className = "response-card-title";
     title.textContent = providerName(providerId);
+    const validation = result?.ok && activeTemplate?.output?.mode === "json"
+      ? promptTemplateUtils.validateTemplateResponse(activeTemplate, result.response.content || result.response.markdown || "")
+      : null;
+    if (validation) {
+      const validationStatus = document.createElement("span");
+      validationStatus.className = `response-card-schema-status ${validation.ok ? "is-valid" : "is-invalid"}`;
+      validationStatus.textContent = validation.ok ? "Schema 通过" : "Schema 未通过";
+      header.append(title, validationStatus);
+    } else {
+      header.append(title);
+    }
     const time = document.createElement("span");
     time.className = "response-card-time";
     time.textContent = formatResponseTime(result?.response?.timestamp);
-    header.append(title, time);
+    header.append(time);
     card.append(header);
 
     if (result?.ok && result.response) {
       const content = document.createElement("pre");
       content.className = "response-card-content";
-      content.textContent = result.response.content || result.response.markdown || "";
+      const rawContent = result.response.content || result.response.markdown || "";
+      content.textContent = rawContent;
       card.append(content);
+
+      if (validation?.mode === "json") {
+        const structured = document.createElement("details");
+        structured.className = "response-structured-details";
+        const summary = document.createElement("summary");
+        summary.textContent = validation.ok ? "查看结构化 JSON" : "查看校验详情";
+        structured.append(summary);
+        const structuredContent = document.createElement("pre");
+        structuredContent.className = "response-card-structured";
+        structuredContent.textContent = validation.ok
+          ? JSON.stringify(validation.value, null, 2)
+          : formatTemplateErrors(validation.errors || [{ path: "$", message: validation.error || "JSON 校验失败" }]);
+        structured.append(structuredContent);
+        card.append(structured);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "response-card-actions";
+      actions.append(createTemplateButton("尝试导入模板", () => importResponseAsTemplate(providerId).catch((error) => {
+        compareStatus.textContent = error instanceof Error ? error.message : String(error);
+      })));
+      card.append(actions);
     } else {
       const error = document.createElement("div");
       error.className = "response-card-error";
@@ -665,6 +735,20 @@ function renderResponses() {
       card.append(error);
     }
     responseList.append(card);
+  }
+}
+
+async function importResponseAsTemplate(providerId) {
+  const result = responseBundles.get(providerId);
+  const content = result?.response?.content || result?.response?.markdown || "";
+  if (!content.trim()) {
+    compareStatus.textContent = "当前回答为空，无法导入模板";
+    return;
+  }
+  const imported = await importTemplateText(content, "response");
+  if (imported) {
+    compareStatus.textContent = `${providerName(providerId)} 的回答已导入模板库`;
+    openTemplateLibraryDrawer();
   }
 }
 
@@ -729,6 +813,7 @@ async function collectResponses() {
 function openCompareDrawer() {
   closePromptLibraryDrawer();
   closeSessionDrawer();
+  closeTemplateLibraryDrawer();
   compareDrawer.dataset.open = "true";
   compareDrawer.setAttribute("aria-hidden", "false");
   collectResponses().catch((error) => {
@@ -804,6 +889,7 @@ async function loadPromptLibrary() {
 function openPromptLibraryDrawer() {
   closeCompareDrawer();
   closeSessionDrawer();
+  closeTemplateLibraryDrawer();
   promptLibraryDrawer.dataset.open = "true";
   promptLibraryDrawer.setAttribute("aria-hidden", "false");
   loadPromptLibrary().catch((error) => {
@@ -814,6 +900,379 @@ function openPromptLibraryDrawer() {
 function closePromptLibraryDrawer() {
   promptLibraryDrawer.dataset.open = "false";
   promptLibraryDrawer.setAttribute("aria-hidden", "true");
+}
+
+function templateCategoryName(categoryId) {
+  return PROMPT_TEMPLATES.categories.find((category) => category.id === categoryId)?.name || "自定义";
+}
+
+function allPromptTemplates() {
+  return [...PROMPT_TEMPLATES.templates, ...userTemplateEntries];
+}
+
+function templateIdExists(id, entries = allPromptTemplates()) {
+  return entries.some((entry) => entry.id === id);
+}
+
+function userTemplateId() {
+  return `user.imported.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`.slice(0, 96);
+}
+
+function formatTemplateErrors(errors = []) {
+  return errors.slice(0, 3).map((error) => `${error.path}: ${error.message}`).join("；");
+}
+
+function normalizeStoredTemplates(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries.map((entry) => promptTemplateUtils.normalizeTemplate(entry, { source: "user" }))
+    .filter((entry) => promptTemplateUtils.validateTemplateDefinition(entry).ok)
+    .slice(0, MAX_USER_TEMPLATES);
+}
+
+async function persistUserTemplates() {
+  await chrome.storage.local.set({ [PROMPT_TEMPLATES_KEY]: userTemplateEntries.slice(0, MAX_USER_TEMPLATES) });
+}
+
+function populateTemplateCategories() {
+  templateCategorySelect.replaceChildren();
+  const allOption = document.createElement("option");
+  allOption.value = "all";
+  allOption.textContent = "全部分类";
+  templateCategorySelect.append(allOption);
+  for (const category of PROMPT_TEMPLATES.categories) {
+    const option = document.createElement("option");
+    option.value = category.id;
+    option.textContent = category.name;
+    templateCategorySelect.append(option);
+  }
+}
+
+function createTemplateButton(label, onClick, primary = false) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = `drawer-btn${primary ? " drawer-btn-primary" : ""}`;
+  button.textContent = label;
+  button.addEventListener("click", () => {
+    try {
+      Promise.resolve(onClick()).catch((error) => {
+        templateLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+      });
+    } catch (error) {
+      templateLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+    }
+  });
+  return button;
+}
+
+function renderTemplateLibrary() {
+  const categoryId = templateCategorySelect.value || "all";
+  const query = templateSearchInput.value.trim().toLocaleLowerCase();
+  const templates = allPromptTemplates().filter((template) => {
+    if (categoryId !== "all" && template.categoryId !== categoryId) return false;
+    if (!query) return true;
+    return [template.name, template.description, template.categoryId, ...(template.tags || [])]
+      .join(" ")
+      .toLocaleLowerCase()
+      .includes(query);
+  });
+
+  templateList.replaceChildren();
+  if (!templates.length) {
+    const empty = document.createElement("div");
+    empty.className = "prompt-empty";
+    empty.textContent = "没有匹配的模板；可以导入其他模型生成的 JSON。";
+    templateList.append(empty);
+    return;
+  }
+
+  for (const template of templates) {
+    const card = document.createElement("article");
+    card.className = "prompt-card template-card";
+
+    const header = document.createElement("header");
+    header.className = "prompt-card-header";
+    const title = document.createElement("div");
+    title.className = "prompt-card-title";
+    title.textContent = template.name;
+    const source = document.createElement("span");
+    source.className = "template-card-badge";
+    source.textContent = template.metadata?.source === "builtin" ? "内置" : "自定义";
+    header.append(title, source);
+
+    const meta = document.createElement("div");
+    meta.className = "template-card-meta";
+    meta.textContent = `${templateCategoryName(template.categoryId)} · ${template.output?.mode === "json" ? "JSON 输出" : "文本输出"} · v${template.version}`;
+
+    const content = document.createElement("div");
+    content.className = "prompt-card-content";
+    content.textContent = template.description;
+
+    const actions = document.createElement("div");
+    actions.className = "prompt-card-actions";
+    actions.append(
+      createTemplateButton("使用", () => openTemplateForm(template), true),
+      createTemplateButton("复制", () => duplicateTemplate(template)),
+      createTemplateButton("导出", () => downloadTemplateJson(template))
+    );
+    if (template.metadata?.source !== "builtin") {
+      actions.append(createTemplateButton("删除", () => deleteUserTemplate(template.id)));
+    }
+
+    card.append(header, meta, content, actions);
+    templateList.append(card);
+  }
+}
+
+async function loadTemplateLibrary() {
+  const data = await chrome.storage.local.get(PROMPT_TEMPLATES_KEY);
+  userTemplateEntries = normalizeStoredTemplates(data[PROMPT_TEMPLATES_KEY]);
+  populateTemplateCategories();
+  renderTemplateLibrary();
+}
+
+function closeTemplateLibraryDrawer() {
+  templateLibraryDrawer.dataset.open = "false";
+  templateLibraryDrawer.setAttribute("aria-hidden", "true");
+}
+
+function openTemplateLibraryDrawer() {
+  closeCompareDrawer();
+  closeSessionDrawer();
+  closePromptLibraryDrawer();
+  templateLibraryDrawer.dataset.open = "true";
+  templateLibraryDrawer.setAttribute("aria-hidden", "false");
+  loadTemplateLibrary().catch((error) => {
+    templateLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+  });
+}
+
+function downloadJson(value, filename) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadTemplateJson(template) {
+  downloadJson(template, `${template.id.replace(/[^a-z0-9._-]/gi, "-")}.json`);
+  templateLibraryStatus.textContent = `${template.name} 已导出`;
+}
+
+async function duplicateTemplate(template) {
+  const copy = promptTemplateUtils.clone(template);
+  copy.id = userTemplateId();
+  copy.name = `${template.name} 副本`;
+  copy.version = 1;
+  copy.metadata = { ...(copy.metadata || {}), source: "user", copiedFrom: template.id };
+  userTemplateEntries = [copy, ...userTemplateEntries].slice(0, MAX_USER_TEMPLATES);
+  await persistUserTemplates();
+  renderTemplateLibrary();
+  templateLibraryStatus.textContent = `${copy.name} 已创建，可以继续导出或使用`;
+}
+
+async function deleteUserTemplate(id) {
+  userTemplateEntries = userTemplateEntries.filter((entry) => entry.id !== id);
+  await persistUserTemplates();
+  renderTemplateLibrary();
+  templateLibraryStatus.textContent = "模板已删除";
+}
+
+async function importTemplateText(text, source = "imported") {
+  const result = promptTemplateUtils.parseTemplateImport(text, { source });
+  if (!result.ok) {
+    templateLibraryStatus.textContent = `导入失败：${formatTemplateErrors(result.errors)}`;
+    return false;
+  }
+
+  const imported = [];
+  for (const rawTemplate of result.templates) {
+    const template = promptTemplateUtils.clone(rawTemplate);
+    if (templateIdExists(template.id, [...allPromptTemplates(), ...imported])) {
+      template.id = userTemplateId();
+      template.name = `${template.name}（导入副本）`;
+    }
+    template.metadata = { ...(template.metadata || {}), source: "user", importedAt: new Date().toISOString() };
+    imported.push(template);
+  }
+  userTemplateEntries = [...imported, ...userTemplateEntries].slice(0, MAX_USER_TEMPLATES);
+  await persistUserTemplates();
+  renderTemplateLibrary();
+  templateLibraryStatus.textContent = `已导入 ${imported.length} 个模板${result.warnings.length ? " · 有可选警告" : ""}`;
+  return true;
+}
+
+function getTemplateInputDefaults(schema) {
+  const values = {};
+  for (const [name, definition] of Object.entries(schemaProperties(schema))) {
+    if (Object.prototype.hasOwnProperty.call(definition, "default")) values[name] = promptTemplateUtils.clone(definition.default);
+    else if (Array.isArray(definition.enum) && definition.enum.length === 1) values[name] = definition.enum[0];
+    else if (definition.type === "boolean") values[name] = false;
+    else if (definition.type === "array") values[name] = [];
+    else if (definition.type === "object") values[name] = {};
+    else values[name] = "";
+  }
+  return values;
+}
+
+function templateFieldValue(definition, rawValue) {
+  if (definition.type === "boolean") return rawValue === "true";
+  if (definition.type === "number" || definition.type === "integer") {
+    if (rawValue === "") return "";
+    return Number(rawValue);
+  }
+  if (definition.type === "array" || definition.type === "object") {
+    if (!String(rawValue).trim()) return definition.type === "array" ? [] : {};
+    try {
+      return JSON.parse(rawValue);
+    } catch {
+      throw new Error("请输入合法 JSON");
+    }
+  }
+  return rawValue;
+}
+
+function readTemplateFormValues() {
+  const values = {};
+  for (const control of templateFormFields.querySelectorAll("[data-template-field]")) {
+    values[control.name] = templateFieldValue(control.dataset.templateDefinition ? JSON.parse(control.dataset.templateDefinition) : {}, control.value);
+  }
+  return values;
+}
+
+function showTemplateFormError(message = "") {
+  templateFormError.textContent = message;
+  templateFormError.hidden = !message;
+}
+
+function updateTemplatePromptPreview() {
+  if (!templateFormTemplate) return null;
+  let values;
+  try {
+    values = readTemplateFormValues();
+  } catch (error) {
+    showTemplateFormError(error instanceof Error ? error.message : String(error));
+    templatePromptPreview.textContent = "";
+    return null;
+  }
+  templateFormValues = values;
+  const result = promptTemplateUtils.renderPromptTemplate(templateFormTemplate, values);
+  if (!result.ok) {
+    showTemplateFormError(formatTemplateErrors(result.errors));
+    templatePromptPreview.textContent = "";
+    return result;
+  }
+  showTemplateFormError("");
+  templatePromptPreview.textContent = result.prompt;
+  return result;
+}
+
+function createTemplateField(name, definition, value) {
+  const wrapper = document.createElement("label");
+  wrapper.className = "template-form-field";
+  const title = document.createElement("span");
+  title.className = "template-form-label";
+  title.textContent = `${definition.title || name}${definition.required ? "" : ""}`;
+  const description = document.createElement("small");
+  description.textContent = definition.description || name;
+  wrapper.append(title, description);
+
+  let control;
+  if (Array.isArray(definition.enum)) {
+    control = document.createElement("select");
+    for (const optionValue of definition.enum) {
+      const option = document.createElement("option");
+      option.value = String(optionValue);
+      option.textContent = String(optionValue);
+      option.selected = sameValue(optionValue, value);
+      control.append(option);
+    }
+  } else if (definition.type === "boolean") {
+    control = document.createElement("select");
+    for (const optionValue of [true, false]) {
+      const option = document.createElement("option");
+      option.value = String(optionValue);
+      option.textContent = optionValue ? "是" : "否";
+      option.selected = optionValue === value;
+      control.append(option);
+    }
+  } else if (definition.type === "array" || definition.type === "object" || String(value).includes("\n") || name.toLowerCase().includes("code") || name.toLowerCase().includes("text")) {
+    control = document.createElement("textarea");
+    control.rows = definition.type === "array" || definition.type === "object" ? 4 : 6;
+    control.value = definition.type === "array" || definition.type === "object"
+      ? JSON.stringify(value, null, 2)
+      : String(value ?? "");
+  } else {
+    control = document.createElement("input");
+    control.type = definition.type === "number" || definition.type === "integer" ? "number" : "text";
+    control.value = String(value ?? "");
+  }
+  control.name = name;
+  control.dataset.templateField = "true";
+  control.dataset.templateDefinition = JSON.stringify(definition);
+  control.addEventListener("input", updateTemplatePromptPreview);
+  control.addEventListener("change", updateTemplatePromptPreview);
+  wrapper.append(control);
+  return wrapper;
+}
+
+function sameValue(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function renderTemplateForm() {
+  templateFormFields.replaceChildren();
+  const schema = templateFormTemplate?.inputSchema || { type: "object", properties: {} };
+  const required = new Set(Array.isArray(schema.required) ? schema.required : []);
+  for (const [name, definition] of Object.entries(schemaProperties(schema))) {
+    const fieldDefinition = { ...definition, required: required.has(name) };
+    templateFormFields.append(createTemplateField(name, fieldDefinition, templateFormValues[name]));
+  }
+  if (!Object.keys(schemaProperties(schema)).length) {
+    const empty = document.createElement("div");
+    empty.className = "template-form-empty";
+    empty.textContent = "此模板不需要额外输入。";
+    templateFormFields.append(empty);
+  }
+  updateTemplatePromptPreview();
+}
+
+function openTemplateForm(template) {
+  templateFormTemplate = template;
+  templateFormValues = getTemplateInputDefaults(template.inputSchema);
+  templateFormTitle.textContent = template.name;
+  templateFormDescription.textContent = `${templateCategoryName(template.categoryId)} · ${template.description}`;
+  showTemplateFormError("");
+  renderTemplateForm();
+  if (typeof templateFormDialog.showModal === "function") templateFormDialog.showModal();
+  else templateFormDialog.setAttribute("open", "true");
+}
+
+function closeTemplateForm() {
+  if (typeof templateFormDialog.close === "function" && templateFormDialog.open) templateFormDialog.close();
+  else templateFormDialog.removeAttribute("open");
+  templateFormTemplate = null;
+  templateFormValues = {};
+}
+
+async function applyTemplateForm(runImmediately = false) {
+  const result = updateTemplatePromptPreview();
+  if (!result?.ok) return;
+  activeTemplate = templateFormTemplate;
+  applyingTemplatePrompt = true;
+  promptInput.value = result.prompt;
+  applyingTemplatePrompt = false;
+  await chrome.storage.local.set({ draftPrompt: promptInput.value });
+  autosizeComposer();
+  updateMeta();
+  showError("");
+  closeTemplateForm();
+  dispatchStatus.textContent = `${activeTemplate.name} 已填入 · Compare 可按需收集并校验 JSON`;
+  if (runImmediately) await dispatchPrompt();
 }
 
 function renderSessions() {
@@ -881,6 +1340,7 @@ async function loadSessions() {
 function openSessionDrawer() {
   closeCompareDrawer();
   closePromptLibraryDrawer();
+  closeTemplateLibraryDrawer();
   sessionDrawer.dataset.open = "true";
   sessionDrawer.setAttribute("aria-hidden", "false");
   loadSessions().catch((error) => {
@@ -936,6 +1396,7 @@ async function loadSession(entry) {
   }
 
   selected = new Set(providerIds);
+  activeTemplate = null;
   promptInput.value = entry.prompt;
   currentLayout = ["auto", "1", "2", "3"].includes(entry.workspaceLayout) ? entry.workspaceLayout : "auto";
   responseBundles.clear();
@@ -988,6 +1449,7 @@ async function deletePrompt(id) {
 }
 
 function usePrompt(entry) {
+  activeTemplate = null;
   promptInput.value = entry.content;
   chrome.storage.local.set({ draftPrompt: promptInput.value }).catch(() => {});
   autosizeComposer();
@@ -1006,7 +1468,7 @@ function buildComparisonJson() {
   return workspaceUtils.buildComparisonJson(promptInput.value.trim(), providers, responseBundles);
 }
 
-async function copyText(value, successMessage) {
+async function copyValue(value) {
   try {
     await navigator.clipboard.writeText(value);
   } catch {
@@ -1019,6 +1481,10 @@ async function copyText(value, successMessage) {
     document.execCommand("copy");
     textarea.remove();
   }
+}
+
+async function copyText(value, successMessage) {
+  await copyValue(value);
   compareStatus.textContent = successMessage;
 }
 
@@ -1090,6 +1556,7 @@ async function runPendingLaunch(pending) {
   pendingLaunchRunning = true;
   try {
     selected = new Set(providerIds);
+    activeTemplate = null;
     promptInput.value = pending.prompt;
     await chrome.storage.local.set({
       draftPrompt: promptInput.value,
@@ -1138,6 +1605,7 @@ function autosizeComposer() {
 }
 
 promptInput.addEventListener("input", () => {
+  if (!applyingTemplatePrompt) activeTemplate = null;
   chrome.storage.local.set({ draftPrompt: promptInput.value }).catch(() => {});
   showError(runtimeUpgradeWarning);
   autosizeComposer();
@@ -1160,6 +1628,38 @@ closePromptLibraryBtn.addEventListener("click", closePromptLibraryDrawer);
 savePromptBtn.addEventListener("click", () => saveCurrentPrompt().catch((error) => {
   promptLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
 }));
+templateLibraryBtn.addEventListener("click", openTemplateLibraryDrawer);
+closeTemplateLibraryBtn.addEventListener("click", closeTemplateLibraryDrawer);
+templateCategorySelect.addEventListener("change", renderTemplateLibrary);
+templateSearchInput.addEventListener("input", renderTemplateLibrary);
+importTemplateBtn.addEventListener("click", () => templateImportInput.click());
+templateImportInput.addEventListener("change", async () => {
+  const file = templateImportInput.files?.[0];
+  templateImportInput.value = "";
+  if (!file) return;
+  try {
+    await importTemplateText(await file.text(), "file");
+  } catch (error) {
+    templateLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+  }
+});
+copyTemplateSchemaBtn.addEventListener("click", async () => {
+  try {
+    await copyValue(promptTemplateUtils.buildTemplateGenerationPrompt());
+    templateLibraryStatus.textContent = "模板生成规范已复制，可粘贴给其他模型";
+  } catch (error) {
+    templateLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+  }
+});
+exportTemplatesBtn.addEventListener("click", () => {
+  downloadJson(promptTemplateUtils.toPackage(allPromptTemplates()), `ai-parallel-prompt-templates-${new Date().toISOString().slice(0, 10)}.json`);
+  templateLibraryStatus.textContent = "模板包已导出";
+});
+closeTemplateFormBtn.addEventListener("click", closeTemplateForm);
+insertTemplateBtn.addEventListener("click", () => applyTemplateForm(false).catch((error) => showTemplateFormError(error instanceof Error ? error.message : String(error))));
+runTemplateBtn.addEventListener("click", () => applyTemplateForm(true).catch((error) => showTemplateFormError(error instanceof Error ? error.message : String(error))));
+templateForm.addEventListener("submit", (event) => event.preventDefault());
+templateFormDialog.addEventListener("cancel", () => closeTemplateForm());
 compareBtn.addEventListener("click", openCompareDrawer);
 closeCompareBtn.addEventListener("click", closeCompareDrawer);
 copyMarkdownBtn.addEventListener("click", () => copyText(buildComparisonMarkdown(), "Markdown 已复制"));
@@ -1204,6 +1704,9 @@ async function init() {
   renderResponses();
   loadPromptLibrary().catch((error) => {
     promptLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+  });
+  loadTemplateLibrary().catch((error) => {
+    templateLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
   });
   autosizeComposer();
   updateMeta();

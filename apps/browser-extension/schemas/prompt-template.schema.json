@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/CoderLambert/ai-parallel/main/apps/browser-extension/schemas/prompt-template.schema.json",
+  "title": "AI Parallel Prompt Template",
+  "description": "A locally stored prompt template definition for AI Parallel.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schemaVersion",
+    "id",
+    "version",
+    "name",
+    "categoryId",
+    "description",
+    "promptTemplate",
+    "inputSchema",
+    "output"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "ai-parallel.prompt-template" },
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{1,95}$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "categoryId": { "type": "string", "pattern": "^[a-z][a-z0-9._-]{1,31}$" },
+    "description": { "type": "string", "maxLength": 500 },
+    "tags": { "type": "array", "items": { "type": "string" }, "maxItems": 20 },
+    "promptTemplate": { "type": "string", "minLength": 1 },
+    "inputSchema": {
+      "type": "object",
+      "description": "A JSON Schema object whose root type must be object",
+      "required": ["type", "properties"],
+      "properties": {
+        "$schema": { "type": "string" },
+        "type": { "const": "object" },
+        "properties": { "type": "object" },
+        "required": { "type": "array", "items": { "type": "string" } },
+        "additionalProperties": {}
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["text", "json"] },
+        "schema": { "type": "object", "description": "Required when mode is json" }
+      }
+    },
+    "metadata": { "type": "object" }
+  }
+}

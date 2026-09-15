@@ -12,6 +12,7 @@ AI Parallel 是一个 Chrome / Edge Manifest V3 扩展：在一个工作区中�
 - 导出 Markdown、JSON，或下载 `.md` 文件
 - Agent Handoff：把问题和多模型回答交给目标模型继续处理
 - 本地 Prompt Library
+- Prompt Templates：分类、输入 JSON Schema、变量表单、JSON 输出校验和 JSON 导入/导出
 - 布局切换与 Provider 独立刷新/打开
 
 默认启用 ChatGPT、DeepSeek、智谱清言、Qwen 和 Kimi。Claude、Gemini 与 Grok 可按需开启。
@@ -110,7 +111,7 @@ ai-parallel-sync
 
 AI Parallel 请求：
 
-- `storage`：保存 Provider 选择、草稿和 Prompt Library。
+- `storage`：保存 Provider 选择、草稿、Prompt Library 和本地 Prompt Templates。
 - `tabs`：打开/聚焦工作区和 Grok 顶层标签页。
 - `declarativeNetRequest*`：仅对已配置 Provider 的 `sub_frame` 响应移除 iframe 限制头。
 - Provider host permissions：注入本地 Adapter，并与原站页面交互。
