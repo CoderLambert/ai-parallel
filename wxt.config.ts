@@ -54,11 +54,9 @@ export default defineConfig({
   }),
   hooks: {
     "build:manifestGenerated": (_wxt, manifest) => {
-      // Keep the legacy runtime intact during the foundation wave. The next
-      // runtime issue will replace these public assets with explicit WXT
-      // entrypoints without changing the generated manifest contract.
-      manifest.background = legacyManifest.background;
-      manifest.content_scripts = legacyManifest.content_scripts;
+      // Background and content scripts are generated from explicit WXT
+      // entrypoints. Keep DNR data sourced from the single legacy manifest
+      // until the release configuration is migrated as its own concern.
       manifest.declarative_net_request = legacyManifest.declarative_net_request;
     },
   },

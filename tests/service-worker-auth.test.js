@@ -46,10 +46,10 @@ function loadServiceWorker() {
   };
   vm.createContext(context);
   const source = fs.readFileSync(
-    path.join(__dirname, "..", "apps", "browser-extension", "service-worker.js"),
+    path.join(__dirname, "..", "apps", "browser-extension", "service-worker-loader.js"),
     "utf8"
   );
-  vm.runInContext(source, context, { filename: "service-worker.js" });
+  vm.runInContext(source, context, { filename: "service-worker-loader.js" });
   return { messageListener, openedUrls, sentMessages };
 }
 

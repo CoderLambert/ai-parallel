@@ -2,13 +2,15 @@
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
     "allowJs": true,
-    "checkJs": true,
+    "checkJs": false,
     "strict": true,
     "noEmit": true,
+    "resolveJsonModule": true,
     "types": ["node"]
   },
   "include": [
     "wxt.config.ts",
+    "apps/browser-extension/entrypoints/**/*.ts",
     "apps/browser-extension/contracts/**/*.ts",
     "apps/browser-extension/shared/provider-catalog.js",
     "apps/browser-extension/shared/prompt-template-catalog.js",

@@ -1,5 +1,7 @@
-importScripts("shared/provider-catalog.js");
-importScripts("shared/contract-runtime.js", "shared/storage-contract.js");
+if (globalThis.__AI_PARALLEL_LEGACY_SOURCE__ === true && typeof importScripts === "function") {
+  importScripts("shared/provider-catalog.js");
+  importScripts("shared/contract-runtime.js", "shared/storage-contract.js");
+}
 
 const contractRuntime = globalThis.AIParallelContractRuntime;
 const storage = globalThis.AIParallelStorageContract.createLocalStorage();

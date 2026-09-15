@@ -24,7 +24,7 @@
     "https://grok.com/*"
   ],
   "background": {
-    "service_worker": "service-worker.js"
+    "service_worker": "service-worker-loader.js"
   },
   "action": {
     "default_title": "Open AI Parallel Workspace",

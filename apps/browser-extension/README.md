@@ -53,9 +53,9 @@ When loading from a source checkout, select `apps/browser-extension` directly.
 
 ## Build foundation
 
-The repository is migrating from a source-directory archive to a WXT/Vite
-build in phases. The first foundation phase keeps the existing runtime files
-unchanged while WXT generates and validates a Manifest V3 Chrome artifact:
+The repository uses WXT/Vite to generate Manifest V3 artifacts while keeping
+the provider DOM adapters and existing workspace pages portable across browser
+targets:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -64,13 +64,14 @@ pnpm build:chrome
 pnpm package:extension
 ```
 
-The generated extension is written to `dist/chrome-mv3`. The current
-`wxt.config.ts` reads the existing `manifest.json` as a compatibility source,
-stages the legacy runtime assets, and verifies permissions, host permissions,
-CSP, DNR, content-script order, and referenced files before packaging. The
-temporary `entrypoints/foundation.ts` is only a WXT build anchor; the actual
-background and content-script entrypoints will be migrated under the Runtime
-issue after the shared contracts are stable.
+The generated extension is written to `dist/chrome-mv3`. The explicit WXT
+entrypoints in `entrypoints/background.ts` and `entrypoints/content.ts` bundle
+the Service Worker and Provider Bridge dependencies in a deterministic order.
+The staging script keeps only public UI/shared assets, while the build verifier
+checks manifest semantics, permissions, referenced files, and the generated
+Provider/Bridge initialization order. Loading `apps/browser-extension`
+directly remains supported through `service-worker-loader.js` for source-level
+development and tests.
 
 For a local browser smoke against the built artifact, use:
 
