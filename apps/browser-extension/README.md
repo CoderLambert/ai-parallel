@@ -91,6 +91,17 @@ AI_PARALLEL_BROWSER_HEADLESS=true \
 node tests/browser-smoke.cjs
 ```
 
+在 Android/PRoot 或无可用 GPU 进程的环境中，先安装 Chromium 的系统
+NSPR/NSS 依赖（Arch Linux ARM 为 `pacman -S --needed nspr nss`），再启用
+软件渲染兼容参数：
+
+```bash
+AI_PARALLEL_EXTENSION_ROOT=dist/chrome-mv3 \
+AI_PARALLEL_BROWSER_HEADLESS=true \
+AI_PARALLEL_BROWSER_SOFTWARE_RENDERING=true \
+node tests/browser-smoke.cjs
+```
+
 The smoke remains credential-free. Provider authentication and live Provider
 checks stay in the protected authenticated smoke workflow.
 
