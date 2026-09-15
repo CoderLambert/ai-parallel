@@ -8,6 +8,7 @@ import { HandoffStatus } from "./features/handoff-status";
 import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
 import { PromptLibraryDrawer, type WorkspacePromptAction } from "./features/prompt-library-drawer";
 import { PromptStatus, type WorkspacePromptSummary } from "./features/prompt-status";
+import { SessionLibraryDrawer, type WorkspaceSessionAction } from "./features/session-library-drawer";
 import { SessionStatus, type WorkspaceSessionSummary } from "./features/session-status";
 import { TemplateLibraryDrawer, type WorkspaceTemplateAction } from "./features/template-library-drawer";
 import { TemplateStatus, type WorkspaceTemplateSummary } from "./features/template-status";
@@ -158,6 +159,12 @@ function emitTemplateAction(action: WorkspaceTemplateAction) {
   }));
 }
 
+function emitSessionAction(action: WorkspaceSessionAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-session-action", {
+    detail: action
+  }));
+}
+
 function triggerLegacyAction(action: WorkspaceAction) {
   document.getElementById(legacyActionIds[action])?.click();
 }
@@ -178,9 +185,10 @@ export function WorkspaceShell() {
   const [sessions, setSessions] = useState<WorkspaceSessionSummary[]>([]);
   const [prompts, setPrompts] = useState<WorkspacePromptSummary[]>([]);
   const [templates, setTemplates] = useState<WorkspaceTemplateSummary[]>([]);
-  const [activeDrawer, setActiveDrawer] = useState<"prompt" | "template" | null>(null);
+  const [activeDrawer, setActiveDrawer] = useState<"prompt" | "template" | "session" | null>(null);
   const [promptActionStatus, setPromptActionStatus] = useState("");
   const [templateActionStatus, setTemplateActionStatus] = useState("");
+  const [sessionActionStatus, setSessionActionStatus] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -220,15 +228,22 @@ export function WorkspaceShell() {
       if (detail?.ok === true) setTemplateActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
       else if (detail?.ok === false) setTemplateActionStatus(typeof detail.error === "string" ? detail.error : "模板操作失败");
     };
+    const handleSessionActionResult = (event: Event) => {
+      const detail = (event as CustomEvent<{ ok?: unknown; message?: unknown; error?: unknown }>).detail;
+      if (detail?.ok === true) setSessionActionStatus(typeof detail.message === "string" ? detail.message : "操作已完成");
+      else if (detail?.ok === false) setSessionActionStatus(typeof detail.error === "string" ? detail.error : "Session 操作失败");
+    };
     window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
     window.addEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
     window.addEventListener("ai-parallel:workspace-template-action-result", handleTemplateActionResult);
+    window.addEventListener("ai-parallel:workspace-session-action-result", handleSessionActionResult);
     window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state-request"));
     return () => {
       active = false;
       window.removeEventListener("ai-parallel:workspace-state", handleWorkspaceState);
       window.removeEventListener("ai-parallel:workspace-prompt-action-result", handlePromptActionResult);
       window.removeEventListener("ai-parallel:workspace-template-action-result", handleTemplateActionResult);
+      window.removeEventListener("ai-parallel:workspace-session-action-result", handleSessionActionResult);
     };
   }, []);
 
@@ -246,9 +261,10 @@ export function WorkspaceShell() {
   }
 
   function openWorkspaceAction(action: WorkspaceAction) {
-    if (action === "prompt" || action === "template") {
+    if (action === "prompt" || action === "template" || action === "session") {
       if (action === "prompt") setPromptActionStatus("");
-      else setTemplateActionStatus("");
+      else if (action === "template") setTemplateActionStatus("");
+      else setSessionActionStatus("");
       setActiveDrawer(action);
       return;
     }
@@ -269,6 +285,12 @@ export function WorkspaceShell() {
     setTemplateActionStatus("正在处理…");
     if (action.type === "use") setActiveDrawer(null);
     emitTemplateAction(action);
+  }
+
+  function handleSessionAction(action: WorkspaceSessionAction) {
+    setSessionActionStatus("正在处理…");
+    if (action.type === "load") setActiveDrawer(null);
+    emitSessionAction(action);
   }
 
   return (
@@ -295,7 +317,7 @@ export function WorkspaceShell() {
       />
       <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => openLegacyAction("compare")} />
       <HandoffStatus responseCount={compare.responseCount} onOpen={() => openLegacyAction("compare")} />
-      <SessionStatus sessions={sessions} onOpen={() => openLegacyAction("session")} />
+      <SessionStatus sessions={sessions} onOpen={() => openWorkspaceAction("session")} />
       <PromptStatus prompts={prompts} onOpen={() => openWorkspaceAction("prompt")} />
       <TemplateStatus templates={templates} onOpen={() => openWorkspaceAction("template")} />
       <LibraryStatus summary={libraries} onOpen={openWorkspaceAction} />
@@ -312,6 +334,13 @@ export function WorkspaceShell() {
         status={templateActionStatus}
         onClose={() => setActiveDrawer(null)}
         onAction={handleTemplateAction}
+      />
+      <SessionLibraryDrawer
+        open={activeDrawer === "session"}
+        sessions={sessions}
+        status={sessionActionStatus}
+        onClose={() => setActiveDrawer(null)}
+        onAction={handleSessionAction}
       />
     </div>
   );

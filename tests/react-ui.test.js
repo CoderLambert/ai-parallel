@@ -57,6 +57,7 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   const libraryStatus = read("ui", "workspace", "features", "library-status.tsx");
   const promptDrawer = read("ui", "workspace", "features", "prompt-library-drawer.tsx");
   const sessionStatus = read("ui", "workspace", "features", "session-status.tsx");
+  const sessionDrawer = read("ui", "workspace", "features", "session-library-drawer.tsx");
   const templateDrawer = read("ui", "workspace", "features", "template-library-drawer.tsx");
   const promptStatus = read("ui", "workspace", "features", "prompt-status.tsx");
   const templateStatus = read("ui", "workspace", "features", "template-status.tsx");
@@ -96,9 +97,16 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.doesNotMatch(libraryStatus, /promptLibraryEntries|userTemplateEntries|sessionEntries/);
   assert.match(shell, /SessionStatus/);
   assert.match(shell, /sessions/);
+  assert.match(shell, /SessionLibraryDrawer/);
+  assert.match(shell, /ai-parallel:workspace-session-action/);
   assert.match(sessionStatus, /WorkspaceSessionSummary/);
   assert.match(sessionStatus, /promptLength/);
   assert.doesNotMatch(sessionStatus, /entry\.prompt|responseBundles|iframe/);
+  assert.match(sessionDrawer, /WorkspaceSessionAction/);
+  assert.match(sessionDrawer, /type: "save"/);
+  assert.match(sessionDrawer, /type: "load"/);
+  assert.match(sessionDrawer, /type: "delete"/);
+  assert.doesNotMatch(sessionDrawer, /session\.prompt(?!Length)|responseBundles|iframe|dangerouslySetInnerHTML/);
   assert.match(shell, /PromptStatus/);
   assert.match(shell, /prompts/);
   assert.match(shell, /PromptLibraryDrawer/);
@@ -144,6 +152,8 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(legacyWorkspace, /templates: allPromptTemplates\(\)\.length/);
   assert.match(legacyWorkspace, /function workspaceSessionState/);
   assert.match(legacyWorkspace, /promptLength: typeof entry\.prompt === "string" \? entry\.prompt\.length : 0/);
+  assert.match(legacyWorkspace, /ai-parallel:workspace-session-action/);
+  assert.match(legacyWorkspace, /saveCurrentSession\(typeof detail\.title === "string"/);
   assert.match(legacyWorkspace, /sessions: workspaceSessionState\(\)/);
   assert.match(legacyWorkspace, /function workspacePromptState/);
   assert.match(legacyWorkspace, /contentLength: typeof entry\.content === "string" \? entry\.content\.length : 0/);

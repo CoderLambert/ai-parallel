@@ -1476,21 +1476,21 @@ function closeSessionDrawer() {
   sessionDrawer.setAttribute("aria-hidden", "true");
 }
 
-async function saveCurrentSession() {
+async function saveCurrentSession(titleOverride) {
   const prompt = promptInput.value.trim();
   if (!prompt) {
     sessionStatus.textContent = "当前没有可保存的 Prompt";
-    return;
+    return sessionStatus.textContent;
   }
   if (!selected.size) {
     sessionStatus.textContent = "至少选择一个模型后才能保存 Session";
-    return;
+    return sessionStatus.textContent;
   }
 
   const now = new Date().toISOString();
   const entry = {
     id: crypto.randomUUID(),
-    title: sessionTitleInput.value.trim() || promptTitleFromContent(prompt),
+    title: (typeof titleOverride === "string" ? titleOverride.trim() : sessionTitleInput.value.trim()) || promptTitleFromContent(prompt),
     prompt,
     selectedProviders: PROVIDERS.map((provider) => provider.id).filter((id) => selected.has(id)),
     workspaceLayout: currentLayout,
@@ -1502,6 +1502,7 @@ async function saveCurrentSession() {
   sessionTitleInput.value = "";
   renderSessions();
   sessionStatus.textContent = "Session 已保存；回答不会随 Session 保存";
+  return sessionStatus.textContent;
 }
 
 async function deleteSession(id) {
@@ -1509,13 +1510,14 @@ async function deleteSession(id) {
   await storage.set({ [SESSION_KEY]: sessionEntries });
   renderSessions();
   sessionStatus.textContent = "Session 已删除";
+  return sessionStatus.textContent;
 }
 
 async function loadSession(entry) {
   const providerIds = entry.selectedProviders.filter((id) => providerById(id));
   if (!providerIds.length) {
     sessionStatus.textContent = "Session 没有可用的模型选择";
-    return;
+    return sessionStatus.textContent;
   }
 
   selected = new Set(providerIds);
@@ -1540,6 +1542,7 @@ async function loadSession(entry) {
   dispatchStatus.textContent = "Session 已恢复 · Compare 可重新收集回答";
   showError(runtimeUpgradeWarning);
   closeSessionDrawer();
+  return "Session 已恢复 · Compare 可重新收集回答";
 }
 
 async function saveCurrentPrompt(titleOverride) {
@@ -1836,6 +1839,37 @@ window.addEventListener("ai-parallel:workspace-template-action", (event) => {
     }));
   }).catch((error) => {
     window.dispatchEvent(new CustomEvent("ai-parallel:workspace-template-action-result", {
+      detail: { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }));
+  });
+});
+window.addEventListener("ai-parallel:workspace-session-action", (event) => {
+  const detail = event instanceof CustomEvent ? event.detail : null;
+  if (!detail || typeof detail !== "object" || typeof detail.type !== "string") return;
+
+  let operation;
+  if (detail.type === "save") {
+    operation = saveCurrentSession(typeof detail.title === "string" ? detail.title : "");
+  } else if (detail.type === "load" || detail.type === "delete") {
+    if (typeof detail.id !== "string" || !detail.id.trim()) return;
+    const entry = sessionEntries.find((candidate) => candidate.id === detail.id);
+    if (!entry) {
+      window.dispatchEvent(new CustomEvent("ai-parallel:workspace-session-action-result", {
+        detail: { ok: false, error: "Session 不存在或已被删除" }
+      }));
+      return;
+    }
+    operation = detail.type === "load" ? loadSession(entry) : deleteSession(entry.id);
+  } else {
+    return;
+  }
+
+  Promise.resolve(operation).then((message) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-session-action-result", {
+      detail: { ok: true, message: typeof message === "string" ? message : "Session 操作已完成" }
+    }));
+  }).catch((error) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-session-action-result", {
       detail: { ok: false, error: error instanceof Error ? error.message : String(error) }
     }));
   });
