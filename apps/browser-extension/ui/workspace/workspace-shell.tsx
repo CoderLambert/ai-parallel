@@ -4,6 +4,7 @@ import { Button } from "../components/button";
 import { ProviderStrip, type ProviderReadiness } from "./features/provider-strip";
 import { ProviderReadinessPanel, type ProviderPanelAction } from "./features/provider-readiness-panel";
 import { CompareStatus, type CompareSummary } from "./features/compare-status";
+import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
 import { WorkspaceActions, type WorkspaceAction } from "./features/workspace-actions";
 
 const providers = globalThis.AIParallelProviderCatalog;
@@ -18,6 +19,7 @@ const layouts = ["auto", "1", "2", "3"] as const;
 type WorkspaceLayout = (typeof layouts)[number];
 type ProviderReadinessMap = Partial<Record<ProviderId, ProviderReadiness>>;
 const emptyCompareSummary: CompareSummary = { open: false, responseCount: 0, pendingCount: 0, status: "" };
+const emptyLibrarySummary: WorkspaceLibrarySummary = { sessions: 0, prompts: 0, templates: 0 };
 
 function isProviderId(value: unknown): value is ProviderId {
   return typeof value === "string" && providers.some((provider) => provider.id === value);
@@ -57,6 +59,22 @@ function readCompareSummary(value: unknown): CompareSummary {
   };
 }
 
+function readLibrarySummary(value: unknown): WorkspaceLibrarySummary {
+  if (!value || typeof value !== "object") return emptyLibrarySummary;
+  const record = value as Record<string, unknown>;
+  return {
+    sessions: typeof record.sessions === "number" && Number.isFinite(record.sessions)
+      ? Math.max(0, Math.floor(record.sessions))
+      : 0,
+    prompts: typeof record.prompts === "number" && Number.isFinite(record.prompts)
+      ? Math.max(0, Math.floor(record.prompts))
+      : 0,
+    templates: typeof record.templates === "number" && Number.isFinite(record.templates)
+      ? Math.max(0, Math.floor(record.templates))
+      : 0
+  };
+}
+
 function emitSelection(providerIds: readonly ProviderId[]) {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-set-selection", {
     detail: { providerIds: [...providerIds] }
@@ -79,6 +97,7 @@ export function WorkspaceShell() {
   const [layout, setLayout] = useState<WorkspaceLayout>("auto");
   const [readiness, setReadiness] = useState<ProviderReadinessMap>({});
   const [compare, setCompare] = useState<CompareSummary>(emptyCompareSummary);
+  const [libraries, setLibraries] = useState<WorkspaceLibrarySummary>(emptyLibrarySummary);
 
   useEffect(() => {
     let active = true;
@@ -94,11 +113,13 @@ export function WorkspaceShell() {
         workspaceLayout?: unknown;
         providerStates?: unknown;
         compare?: unknown;
+        libraries?: unknown;
       }>).detail;
       if (detail?.selectedProviders) setSelected(readProviderSelection(detail.selectedProviders, providers));
       if (layouts.includes(detail?.workspaceLayout as WorkspaceLayout)) setLayout(detail.workspaceLayout as WorkspaceLayout);
       if (detail?.providerStates) setReadiness(readProviderReadiness(detail.providerStates));
       if (detail?.compare) setCompare(readCompareSummary(detail.compare));
+      if (detail?.libraries) setLibraries(readLibrarySummary(detail.libraries));
     };
     window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
     return () => {
@@ -143,6 +164,7 @@ export function WorkspaceShell() {
         onAction={triggerProviderPanelAction}
       />
       <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => triggerLegacyAction("compare")} />
+      <LibraryStatus summary={libraries} onOpen={triggerLegacyAction} />
     </div>
   );
 }

@@ -135,13 +135,22 @@ function workspaceCompareState() {
   };
 }
 
+function workspaceLibraryState() {
+  return {
+    sessions: sessionEntries.length,
+    prompts: promptLibraryEntries.length,
+    templates: allPromptTemplates().length
+  };
+}
+
 function notifyWorkspaceShell() {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state", {
     detail: {
       selectedProviders: [...selected],
       workspaceLayout: currentLayout,
       providerStates: workspaceProviderStates(),
-      compare: workspaceCompareState()
+      compare: workspaceCompareState(),
+      libraries: workspaceLibraryState()
     }
   }));
 }
@@ -901,6 +910,7 @@ function renderPromptLibrary() {
   promptList.replaceChildren();
   if (!promptLibraryEntries.length) {
     promptList.innerHTML = '<div class="prompt-empty">还没有保存的 Prompt</div>';
+    notifyWorkspaceShell();
     return;
   }
 
@@ -937,6 +947,7 @@ function renderPromptLibrary() {
     card.append(header, content, actions);
     promptList.append(card);
   }
+  notifyWorkspaceShell();
 }
 
 async function loadPromptLibrary() {
@@ -1043,6 +1054,7 @@ function renderTemplateLibrary() {
     empty.className = "prompt-empty";
     empty.textContent = "没有匹配的模板；可以导入其他模型生成的 JSON。";
     templateList.append(empty);
+    notifyWorkspaceShell();
     return;
   }
 
@@ -1082,6 +1094,7 @@ function renderTemplateLibrary() {
     card.append(header, meta, content, actions);
     templateList.append(card);
   }
+  notifyWorkspaceShell();
 }
 
 async function loadTemplateLibrary() {
@@ -1340,6 +1353,7 @@ function renderSessions() {
   sessionList.replaceChildren();
   if (!sessionEntries.length) {
     sessionList.innerHTML = '<div class="prompt-empty">还没有保存的 Session</div>';
+    notifyWorkspaceShell();
     return;
   }
 
@@ -1377,6 +1391,7 @@ function renderSessions() {
     card.append(header, content, actions);
     sessionList.append(card);
   }
+  notifyWorkspaceShell();
 }
 
 async function loadSessions() {
@@ -1785,6 +1800,9 @@ async function init() {
   });
   loadTemplateLibrary().catch((error) => {
     templateLibraryStatus.textContent = error instanceof Error ? error.message : String(error);
+  });
+  loadSessions().catch((error) => {
+    sessionStatus.textContent = error instanceof Error ? error.message : String(error);
   });
   autosizeComposer();
   updateMeta();

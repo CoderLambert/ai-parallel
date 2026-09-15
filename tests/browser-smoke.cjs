@@ -62,6 +62,10 @@ async function run() {
     const readinessCardCount = await page.locator(".workspace-provider-readiness-card").count();
     assert.ok(readinessCardCount > 0 && readinessCardCount <= 8);
     assert.equal(await page.locator(".workspace-compare-status").count(), 1);
+    assert.equal(await page.locator(".workspace-library-card").count(), 3);
+    const libraryCard = (label) => page.locator(".workspace-library-card", { hasText: label });
+    assert.equal(await libraryCard("Templates").locator(".ui-badge").innerText(), "3");
+    assert.equal(await libraryCard("Sessions").locator(".ui-badge").innerText(), "0");
     assert.equal(await page.locator("#sendBtn").isDisabled(), true);
     const workspaceAction = (label) => page.locator(".workspace-actions .ui-button", { hasText: label });
 
@@ -103,12 +107,14 @@ async function run() {
       buffer: Buffer.from(JSON.stringify(importedTemplate))
     });
     await page.locator("#templateList").getByText("Browser smoke template").waitFor({ state: "visible" });
+    assert.equal(await libraryCard("Templates").locator(".ui-badge").innerText(), "4");
 
     await workspaceAction("Sessions").click();
     await page.locator("#sessionTitleInput").fill("CI smoke session");
     await page.locator("#saveSessionBtn").click();
     await page.locator("#sessionList .prompt-card").waitFor({ state: "visible" });
     assert.match(await page.locator("#sessionList").innerText(), /CI smoke session/);
+    assert.equal(await libraryCard("Sessions").locator(".ui-badge").innerText(), "1");
     await page.locator("#sessionList .prompt-card").first().locator("button").first().click();
     assert.equal(await page.locator("#sessionDrawer").getAttribute("aria-hidden"), "true");
     assert.equal(await page.locator("#promptInput").inputValue(), templatePrompt);
@@ -116,6 +122,7 @@ async function run() {
     await workspaceAction("Sessions").click();
     await page.locator("#sessionList .prompt-card").first().locator("button").nth(1).click();
     await page.locator("#sessionList .prompt-empty").waitFor({ state: "visible" });
+    assert.equal(await libraryCard("Sessions").locator(".ui-badge").innerText(), "0");
 
     await workspaceAction("Compare").click();
     assert.equal(await page.locator("#compareDrawer").getAttribute("aria-hidden"), "false");
