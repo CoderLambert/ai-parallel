@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -77,18 +77,25 @@ for (const relativePath of referencedFiles) {
   }
 }
 
-for (const page of ["popup.html", "templates.html"]) {
+for (const page of ["popup.html", "templates.html", "workspace/index.html"]) {
   const pagePath = resolve(buildRoot, page);
   if (!existsSync(pagePath)) throw new Error(`Generated extension page is missing: ${page}`);
   const html = readFileSync(pagePath, "utf8");
   if (/https?:\/\//i.test(html)) throw new Error(`Generated ${page} contains a remote asset URL`);
   for (const [, reference] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
-    const relativePath = reference.replace(/^\/+/, "");
-    if (!relativePath || relativePath.startsWith("#")) continue;
-    if (!existsSync(resolve(buildRoot, relativePath))) {
+    if (!reference || reference.startsWith("#")) continue;
+    const referencedPath = reference.startsWith("/")
+      ? resolve(buildRoot, reference.slice(1))
+      : resolve(dirname(pagePath), reference);
+    if (!existsSync(referencedPath)) {
       throw new Error(`Generated ${page} references missing asset: ${reference}`);
     }
   }
+}
+
+const generatedWorkspace = readFileSync(resolve(buildRoot, "workspace/index.html"), "utf8");
+if (!generatedWorkspace.includes('data-react-workspace="true"') || !generatedWorkspace.includes("../workspace-shell.js")) {
+  throw new Error("Generated Workspace page is missing the React shell integration");
 }
 
 for (const legacyRuntimeFile of ["service-worker.js", "content/frame-bridge.js", "content/providers/core.js"]) {

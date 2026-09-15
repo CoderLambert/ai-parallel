@@ -47,3 +47,24 @@ test("React template library covers schema validation, import/export, editing, a
   assert.match(source, /编辑模板定义/);
   assert.match(source, /createRoot\(document\.getElementById\("root"\)!\)/);
 });
+
+test("Workspace React shell owns the generated toolbar and delegates legacy runtime actions", () => {
+  const shell = read("ui", "workspace", "workspace-shell.tsx");
+  const entrypoint = read("entrypoints", "workspace-shell.tsx");
+  const workspaceHtml = read("workspace", "index.html");
+  const legacyWorkspace = read("workspace", "workspace.js");
+
+  assert.match(shell, /ProviderStrip/);
+  assert.match(shell, /WorkspaceActions/);
+  assert.match(shell, /ai-parallel:workspace-set-selection/);
+  assert.match(shell, /sessionBtn/);
+  assert.match(shell, /promptLibraryBtn/);
+  assert.match(shell, /templateLibraryBtn/);
+  assert.match(shell, /compareBtn/);
+  assert.doesNotMatch(shell, /content\/providers/);
+  assert.match(entrypoint, /defineUnlistedScript/);
+  assert.match(entrypoint, /workspaceReactRoot/);
+  assert.match(workspaceHtml, /id="workspaceReactRoot"/);
+  assert.match(legacyWorkspace, /ai-parallel:workspace-state/);
+  assert.match(legacyWorkspace, /ai-parallel:workspace-set-selection/);
+});

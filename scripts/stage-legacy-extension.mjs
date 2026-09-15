@@ -14,6 +14,8 @@ const files = [
   "workspace/workspace.css",
   "workspace/workspace.js",
   "workspace/context-utils.js",
+  "workspace-shell.css",
+  "ui/theme.css",
   "shared/agent-execution-controller.js",
   "shared/prompt-template-catalog.js",
   "shared/prompt-template-utils.js",

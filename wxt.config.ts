@@ -53,6 +53,22 @@ export default defineConfig({
     content_security_policy: legacyManifest.content_security_policy,
   }),
   hooks: {
+    "build:publicAssets": (_wxt, files) => {
+      const workspaceFileIndex = files.findIndex((file) => file.relativeDest === "workspace/index.html");
+      const workspaceFile = files[workspaceFileIndex];
+      if (!workspaceFile || !("absoluteSrc" in workspaceFile)) return;
+      const source = readFileSync(workspaceFile.absoluteSrc, "utf8");
+      files[workspaceFileIndex] = {
+        relativeDest: workspaceFile.relativeDest,
+        contents: source
+          .replace(
+            "</head>",
+            '  <link rel="stylesheet" href="../ui/theme.css" />\n</head>'
+          )
+          .replace("<body>", '<body data-react-workspace="true">')
+          .replace("</body>", '  <script src="../workspace-shell.js"></script>\n</body>')
+      };
+    },
     "build:manifestGenerated": (_wxt, manifest) => {
       // Background and content scripts are generated from explicit WXT
       // entrypoints. Keep DNR data sourced from the single legacy manifest

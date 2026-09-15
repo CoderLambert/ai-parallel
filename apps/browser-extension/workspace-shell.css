@@ -1,0 +1,19 @@
+body[data-react-workspace="true"] .workspace-legacy-toolbar { display: none; }
+body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-column: 1 / -1; min-width: 0; }
+#workspaceReactRoot { display: none; }
+.workspace-react-toolbar { align-items: center; display: grid; gap: 12px; grid-template-columns: auto minmax(0, 1fr) auto auto; min-height: 48px; padding: 0 14px; }
+.workspace-react-brand { align-items: center; display: flex; font-size: 13px; font-weight: 700; gap: 8px; white-space: nowrap; }
+.workspace-react-mark { align-items: center; background: linear-gradient(135deg, #7c6cff, #a274ff); border-radius: 7px; color: white; display: inline-flex; font-size: 9px; height: 24px; justify-content: center; letter-spacing: -.04em; width: 24px; }
+.workspace-react-version { border: 1px solid var(--ui-border); border-radius: 999px; color: var(--ui-muted); font-size: 9px; padding: 3px 6px; text-transform: uppercase; }
+.workspace-provider-strip, .workspace-actions, .workspace-layout-switch { align-items: center; display: flex; gap: 5px; min-width: 0; }
+.workspace-provider-strip { overflow-x: auto; scrollbar-width: none; }
+.workspace-provider-strip::-webkit-scrollbar { display: none; }
+.workspace-provider-button { flex: 0 0 auto; white-space: nowrap; }
+.workspace-provider-strip .ui-badge { flex: 0 0 auto; }
+.workspace-actions { justify-content: flex-end; }
+.workspace-layout-switch { background: #0d0f13; border: 1px solid var(--ui-border); border-radius: 8px; gap: 2px; padding: 2px; }
+.workspace-layout-switch .ui-button { min-width: 30px; }
+@media (max-width: 1100px) {
+  .workspace-react-toolbar { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .workspace-actions { grid-column: 2 / -1; grid-row: 2; justify-content: flex-start; }
+}

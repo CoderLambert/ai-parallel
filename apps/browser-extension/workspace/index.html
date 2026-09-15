@@ -5,17 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AI Parallel</title>
   <link rel="stylesheet" href="workspace.css" />
+  <link rel="stylesheet" href="../workspace-shell.css" />
 </head>
 <body>
   <div class="app">
     <header class="toolbar">
-      <div class="brand">
+      <div id="workspaceReactRoot"></div>
+      <div class="brand workspace-legacy-toolbar">
         <span class="brand-mark">AP</span>
         <span>AI Parallel</span>
         <span class="version">Live Web</span>
       </div>
-      <div class="toolbar-center" id="providerBar"></div>
-      <div class="toolbar-actions">
+      <div class="toolbar-center workspace-legacy-toolbar" id="providerBar"></div>
+      <div class="toolbar-actions workspace-legacy-toolbar">
         <button id="sessionBtn" type="button" class="compare-trigger">Sessions</button>
         <button id="promptLibraryBtn" type="button" class="compare-trigger">Prompts</button>
         <button id="templateLibraryBtn" type="button" class="compare-trigger">Templates</button>

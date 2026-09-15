@@ -114,6 +114,12 @@ function updateMeta() {
   sendBtn.disabled = selected.size === 0 || !promptInput.value.trim();
 }
 
+function notifyWorkspaceShell() {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state", {
+    detail: { selectedProviders: [...selected], workspaceLayout: currentLayout }
+  }));
+}
+
 function setPanelState(providerId, state, { ready } = {}) {
   const panel = panels.get(providerId);
   if (!panel) return;
@@ -154,6 +160,7 @@ function renderProviderBar() {
     });
     providerBar.append(button);
   }
+  notifyWorkspaceShell();
 }
 
 function postToFrame(providerId, payload) {
@@ -1674,6 +1681,22 @@ insertTemplateBtn.addEventListener("click", () => applyTemplateForm(false).catch
 runTemplateBtn.addEventListener("click", () => applyTemplateForm(true).catch((error) => showTemplateFormError(error instanceof Error ? error.message : String(error))));
 templateForm.addEventListener("submit", (event) => event.preventDefault());
 templateFormDialog.addEventListener("cancel", () => closeTemplateForm());
+
+window.addEventListener("ai-parallel:workspace-set-selection", (event) => {
+  const detail = event instanceof CustomEvent ? event.detail : null;
+  if (!Array.isArray(detail?.providerIds)) return;
+  const providerIds = detail.providerIds.filter((id) => providerById(id));
+  selected = new Set(providerIds);
+  for (const providerId of PROVIDERS.map((provider) => provider.id)) {
+    if (!selected.has(providerId)) responseBundles.delete(providerId);
+  }
+  storage.set({ selectedProviders: providerIds }).catch(() => {});
+  renderProviderBar();
+  renderPanels();
+  renderResponses();
+  updateMeta();
+});
+
 compareBtn.addEventListener("click", openCompareDrawer);
 closeCompareBtn.addEventListener("click", closeCompareDrawer);
 copyMarkdownBtn.addEventListener("click", () => copyText(buildComparisonMarkdown(), "Markdown 已复制"));
@@ -1697,6 +1720,7 @@ document.querySelectorAll(".layout-switch button").forEach((button) => {
     panelGrid.dataset.layout = currentLayout;
     document.querySelectorAll(".layout-switch button").forEach((item) => item.classList.toggle("active", item === button));
     await storage.set({ workspaceLayout: currentLayout });
+    notifyWorkspaceShell();
   });
 });
 
@@ -1724,6 +1748,7 @@ async function init() {
   });
   autosizeComposer();
   updateMeta();
+  notifyWorkspaceShell();
   if (pendingLaunch) runPendingLaunch(pendingLaunch).catch((error) => showError(error instanceof Error ? error.message : String(error)));
   setInterval(() => {
     for (const id of selected) {
