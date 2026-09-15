@@ -128,6 +128,10 @@ npm run check
 npm test
 ```
 
+需要真实 Provider 登录态时，使用独立的手动、受保护 authenticated smoke
+流程；默认 Browser Smoke 仍不读取凭据。配置和保留边界见
+[Authenticated Provider Smoke](docs/testing/AUTHENTICATED-PROVIDER-SMOKE.md)。
+
 从源码加载时，在扩展管理页选择 `apps/browser-extension`。
 
 生成 Release 包：
