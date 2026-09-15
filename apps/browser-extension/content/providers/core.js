@@ -142,11 +142,11 @@
   }
 
   function findGenericSendButton(editor) {
-    const scopes = [editor.closest("form"), editor.parentElement, editor.closest("main"), document.body].filter(Boolean);
+    const scopes = editorScopes(editor);
     const hints = ["send", "发送", "提交", "submit"];
     for (const scope of scopes) {
       const buttons = [...scope.querySelectorAll("button")].filter((button) => {
-        if (!isVisible(button) || button.disabled) return false;
+        if (!isEnabledControl(button)) return false;
         const text = normalizedText(button).toLowerCase();
         return button.getAttribute("type") === "submit" || hints.some((hint) => text.includes(hint));
       });
@@ -155,17 +155,60 @@
     return null;
   }
 
-  async function submit(adapter, editor) {
-    const button = await waitFor(() => (
-      queryFirstVisible(adapter.sendSelectors, (element) => isVisible(element) && !element.disabled)
-        || findGenericSendButton(editor)
-    ), adapter.sendReadyTimeoutMs ?? 2500, 100);
+  function isEnabledControl(element) {
+    return isVisible(element)
+      && !element.disabled
+      && element.getAttribute("aria-disabled") !== "true"
+      && element.getAttribute("aria-busy") !== "true";
+  }
 
-    if (button) {
-      button.click();
-      return;
+  function editorScopes(editor) {
+    const scopes = [];
+    const add = (scope) => {
+      if (scope && !scopes.includes(scope)) scopes.push(scope);
+    };
+
+    let current = editor.parentElement;
+    for (let depth = 0; current && depth < 5; depth += 1) {
+      add(current);
+      current = current.parentElement;
     }
+    add(editor.closest("form"));
+    add(editor.closest("[role='form']"));
+    add(editor.closest("main"));
+    return scopes;
+  }
 
+  function queryFirstVisibleInEditorScope(selectors, editor) {
+    for (const scope of editorScopes(editor)) {
+      const match = queryFirstVisible(selectors, isEnabledControl, scope);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  function findSendButton(adapter, editor) {
+    return queryFirstVisibleInEditorScope(adapter.sendSelectors, editor) || findGenericSendButton(editor);
+  }
+
+  function responseCount(adapter) {
+    return queryVisible(
+      adapter.responseSelectors,
+      (element) => isVisible(element) && !element.closest("[aria-hidden='true']")
+    ).length;
+  }
+
+  function submissionConfirmed(adapter, editor, prompt, initialButton, initialResponseCount) {
+    const currentEditor = queryFirstVisible(adapter.editorSelectors, isUsableEditor);
+    if (!currentEditor || !editorContainsPrompt(currentEditor, prompt)) return true;
+    if (initialButton && (!initialButton.isConnected
+      || initialButton.disabled
+      || initialButton.getAttribute("aria-disabled") === "true"
+      || initialButton.getAttribute("aria-busy") === "true")) return true;
+    return responseCount(adapter) > initialResponseCount;
+  }
+
+  function dispatchEnter(editor) {
     editor.focus();
     for (const type of ["keydown", "keypress", "keyup"]) {
       editor.dispatchEvent(new KeyboardEvent(type, {
@@ -177,6 +220,46 @@
         cancelable: true
       }));
     }
+  }
+
+  function requestFormSubmit(editor) {
+    const form = editor.closest("form");
+    if (typeof form?.requestSubmit !== "function") return false;
+    form.requestSubmit();
+    return true;
+  }
+
+  async function submit(adapter, editor, prompt) {
+    const immediateButton = findSendButton(adapter, editor);
+    const button = immediateButton || (adapter.sendSelectors?.length
+      ? await waitFor(
+          () => findSendButton(adapter, editor),
+          adapter.sendReadyTimeoutMs ?? 2500,
+          100
+        )
+      : null);
+    const initialResponseCount = responseCount(adapter);
+    const attempts = button
+      ? [
+          () => button.click(),
+          () => requestFormSubmit(editor) || dispatchEnter(editor)
+        ]
+      : [
+          () => requestFormSubmit(editor) || dispatchEnter(editor),
+          () => dispatchEnter(editor)
+        ];
+
+    for (const attempt of attempts) {
+      try { attempt(); } catch { /* Try the next bounded submission path. */ }
+      const confirmed = await waitFor(
+        () => submissionConfirmed(adapter, editor, prompt, button, initialResponseCount),
+        adapter.submitConfirmationTimeoutMs ?? 3000,
+        100
+      );
+      if (confirmed) return true;
+    }
+
+    throw new Error("无法确认 Prompt 已发送；请在模型窗口中重试");
   }
 
   async function sendPrompt(adapter, prompt) {
@@ -191,8 +274,7 @@
     if (!editorContainsPrompt(editor, prompt)) await fillEditor(adapter, editor, prompt);
     if (!editorContainsPrompt(editor, prompt)) throw new Error("无法可靠写入 Prompt");
 
-    await submit(adapter, editor);
-    return true;
+    return submit(adapter, editor, prompt);
   }
 
   function collectResponse(adapter, rootDocument = document) {

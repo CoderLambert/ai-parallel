@@ -55,6 +55,7 @@ let selected = new Set();
 let currentLayout = "auto";
 let runtimeUpgradeWarning = "";
 let pendingLaunchRunning = false;
+let dispatchInFlight = false;
 
 function providerById(id) {
   return PROVIDERS.find((provider) => provider.id === id);
@@ -553,10 +554,12 @@ function collectResponseFromProvider(providerId) {
 }
 
 async function dispatchPrompt() {
+  if (dispatchInFlight) return;
   const prompt = promptInput.value.trim();
   if (!prompt) return showError("请输入 Prompt");
   if (!selected.size) return showError("至少选择一个模型");
 
+  dispatchInFlight = true;
   responseBundles.clear();
   renderResponses();
   showError(runtimeUpgradeWarning);
@@ -589,6 +592,7 @@ async function dispatchPrompt() {
     showError(error instanceof Error ? error.message : String(error));
     dispatchStatus.textContent = "发送失败";
   } finally {
+    dispatchInFlight = false;
     updateMeta();
   }
 }
