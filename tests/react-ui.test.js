@@ -1,0 +1,49 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+
+const extensionRoot = path.join(__dirname, "..", "apps", "browser-extension");
+
+function read(...parts) {
+  return fs.readFileSync(path.join(extensionRoot, ...parts), "utf8");
+}
+
+test("React extension pages use local module and style assets under the extension CSP", () => {
+  const popupHtml = read("entrypoints", "popup", "index.html");
+  const templateHtml = read("entrypoints", "templates.html");
+
+  for (const html of [popupHtml, templateHtml]) {
+    assert.doesNotMatch(html, /https?:\/\//);
+    assert.match(html, /<script type="module" src="[./a-z-]+\.tsx"><\/script>/);
+  }
+  assert.match(popupHtml, /id="root"/);
+  assert.match(templateHtml, /id="root"/);
+});
+
+test("Popup React slice preserves provider, storage, message, keyboard, and template entry behavior", () => {
+  const source = read("entrypoints", "popup", "main.tsx");
+  assert.match(source, /AIParallelProviderCatalog/);
+  assert.match(source, /selectedProviders/);
+  assert.match(source, /pendingLaunch/);
+  assert.match(source, /OPEN_WORKSPACE/);
+  assert.match(source, /Ctrl \/ ⌘ \+ Enter/);
+  assert.match(source, /role="checkbox"/);
+  assert.match(source, /templates\.html/);
+  assert.match(source, /createRoot\(document\.getElementById\("root"\)!\)/);
+});
+
+test("React template library covers schema validation, import/export, editing, and empty/error states", () => {
+  const source = read("ui", "template-library", "main.tsx");
+  assert.match(source, /parseTemplateImport/);
+  assert.match(source, /validateTemplateDefinition/);
+  assert.match(source, /renderPromptTemplate/);
+  assert.match(source, /toPackage/);
+  assert.match(source, /promptTemplatesV1/);
+  assert.match(source, /role="alert"/);
+  assert.match(source, /role="status"/);
+  assert.match(source, /没有匹配的模板/);
+  assert.match(source, /OPEN_WORKSPACE/);
+  assert.match(source, /编辑模板定义/);
+  assert.match(source, /createRoot\(document\.getElementById\("root"\)!\)/);
+});

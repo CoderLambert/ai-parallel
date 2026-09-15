@@ -45,7 +45,17 @@ declare global {
     readonly PACKAGE_KIND: "ai-parallel.prompt-template-package";
     readonly SCHEMA_VERSION: 1;
     clone<T>(value: T): T;
+    inferSchemaFromValue(value: unknown, title?: string): import("./json-schema").JsonSchema;
     normalizeTemplate(raw: unknown, options?: { source?: string }): PromptTemplate;
+    parseTemplateImport(text: string, options?: { source?: string }): {
+      ok: boolean;
+      templates: PromptTemplate[];
+      errors: Array<{ path: string; message: string }>;
+      warnings: Array<{ path: string; message: string }>;
+    };
+    renderPromptTemplate(template: PromptTemplate, values: Record<string, unknown>, options?: { appendOutputSchema?: boolean }):
+      | { ok: true; prompt: string }
+      | { ok: false; errors: Array<{ path: string; message: string }> };
     validateTemplateDefinition(template: PromptTemplate): TemplateValidationResult;
     toPackage(templates: PromptTemplate[]): PromptTemplatePackage;
   };

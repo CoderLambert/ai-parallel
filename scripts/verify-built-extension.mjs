@@ -77,6 +77,26 @@ for (const relativePath of referencedFiles) {
   }
 }
 
+for (const page of ["popup.html", "templates.html"]) {
+  const pagePath = resolve(buildRoot, page);
+  if (!existsSync(pagePath)) throw new Error(`Generated extension page is missing: ${page}`);
+  const html = readFileSync(pagePath, "utf8");
+  if (/https?:\/\//i.test(html)) throw new Error(`Generated ${page} contains a remote asset URL`);
+  for (const [, reference] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+    const relativePath = reference.replace(/^\/+/, "");
+    if (!relativePath || relativePath.startsWith("#")) continue;
+    if (!existsSync(resolve(buildRoot, relativePath))) {
+      throw new Error(`Generated ${page} references missing asset: ${reference}`);
+    }
+  }
+}
+
+for (const legacyRuntimeFile of ["service-worker.js", "content/frame-bridge.js", "content/providers/core.js"]) {
+  if (existsSync(resolve(buildRoot, legacyRuntimeFile))) {
+    throw new Error(`Generated extension still ships a legacy runtime asset: ${legacyRuntimeFile}`);
+  }
+}
+
 const generatedContentScript = built.content_scripts[0]?.js?.[0];
 if (generatedContentScript) {
   const contentBundle = readFileSync(resolve(buildRoot, generatedContentScript), "utf8");

@@ -84,6 +84,7 @@ test("extension entry points load the catalog before consuming it", () => {
   assert.match(popupHtml, /shared\/contract-runtime\.js[\s\S]*shared\/storage-contract\.js[\s\S]*popup\.js/);
   const manifest = JSON.parse(fs.readFileSync(path.join(extensionRoot, "manifest.json"), "utf8"));
   assert.equal(manifest.background.service_worker, "service-worker-loader.js");
+  assert.equal(manifest.action.default_popup, "popup.html");
   const contentScripts = manifest.content_scripts[0].js;
   assert.ok(contentScripts.indexOf("shared/contract-runtime.js") < contentScripts.indexOf("content/frame-bridge.js"));
 });

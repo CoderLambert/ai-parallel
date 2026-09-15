@@ -8,9 +8,6 @@ const sourceRoot = resolve(repoDir, "apps/browser-extension");
 const publicRoot = resolve(repoDir, ".wxt-legacy");
 
 const files = [
-  "popup.html",
-  "popup.css",
-  "popup.js",
   "shared/contract-runtime.js",
   "shared/storage-contract.js",
   "workspace/index.html",
