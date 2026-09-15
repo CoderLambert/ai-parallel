@@ -5,6 +5,7 @@ import { ProviderStrip, type ProviderReadiness } from "./features/provider-strip
 import { ProviderReadinessPanel, type ProviderPanelAction } from "./features/provider-readiness-panel";
 import { CompareStatus, type CompareSummary } from "./features/compare-status";
 import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
+import { PromptStatus, type WorkspacePromptSummary } from "./features/prompt-status";
 import { SessionStatus, type WorkspaceSessionSummary } from "./features/session-status";
 import { WorkspaceActions, type WorkspaceAction } from "./features/workspace-actions";
 
@@ -95,6 +96,24 @@ function readSessionSummaries(value: unknown): WorkspaceSessionSummary[] {
   }).slice(0, 20);
 }
 
+function readPromptSummaries(value: unknown): WorkspacePromptSummary[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.id !== "string" || !record.id.trim()) return [];
+    const contentLength = typeof record.contentLength === "number" && Number.isFinite(record.contentLength)
+      ? Math.max(0, Math.floor(record.contentLength))
+      : 0;
+    return [{
+      id: record.id,
+      title: typeof record.title === "string" && record.title.trim() ? record.title : "Untitled Prompt",
+      updatedAt: typeof record.updatedAt === "string" ? record.updatedAt : "",
+      contentLength
+    }];
+  }).slice(0, 50);
+}
+
 function emitSelection(providerIds: readonly ProviderId[]) {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-set-selection", {
     detail: { providerIds: [...providerIds] }
@@ -119,6 +138,7 @@ export function WorkspaceShell() {
   const [compare, setCompare] = useState<CompareSummary>(emptyCompareSummary);
   const [libraries, setLibraries] = useState<WorkspaceLibrarySummary>(emptyLibrarySummary);
   const [sessions, setSessions] = useState<WorkspaceSessionSummary[]>([]);
+  const [prompts, setPrompts] = useState<WorkspacePromptSummary[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -136,6 +156,7 @@ export function WorkspaceShell() {
         compare?: unknown;
         libraries?: unknown;
         sessions?: unknown;
+        prompts?: unknown;
       }>).detail;
       if (detail?.selectedProviders) setSelected(readProviderSelection(detail.selectedProviders, providers));
       if (layouts.includes(detail?.workspaceLayout as WorkspaceLayout)) setLayout(detail.workspaceLayout as WorkspaceLayout);
@@ -143,6 +164,7 @@ export function WorkspaceShell() {
       if (detail?.compare) setCompare(readCompareSummary(detail.compare));
       if (detail?.libraries) setLibraries(readLibrarySummary(detail.libraries));
       if (detail?.sessions) setSessions(readSessionSummaries(detail.sessions));
+      if (detail?.prompts) setPrompts(readPromptSummaries(detail.prompts));
     };
     window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
     return () => {
@@ -188,6 +210,7 @@ export function WorkspaceShell() {
       />
       <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => triggerLegacyAction("compare")} />
       <SessionStatus sessions={sessions} onOpen={() => triggerLegacyAction("session")} />
+      <PromptStatus prompts={prompts} onOpen={() => triggerLegacyAction("prompt")} />
       <LibraryStatus summary={libraries} onOpen={triggerLegacyAction} />
     </div>
   );
