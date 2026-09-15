@@ -46,6 +46,17 @@ body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-col
 .workspace-prompt-card span, .workspace-prompt-card small { color: var(--ui-muted); font-size: 10px; }
 .workspace-prompt-card small { opacity: .78; }
 .workspace-prompt-empty, .workspace-prompt-more { color: var(--ui-muted); font-size: 10px; }
+.workspace-template-status { display: grid; gap: 6px; grid-column: 1 / -1; padding: 0 14px 10px; }
+.workspace-template-status-heading { align-items: center; display: flex; justify-content: space-between; gap: 8px; }
+.workspace-template-status-title { align-items: center; display: flex; gap: 7px; }
+.workspace-template-status-title strong { font-size: 11px; }
+.workspace-template-preview { display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); min-width: 0; }
+.workspace-template-card { background: rgba(17, 18, 23, .58); border: 1px solid var(--ui-border); border-radius: 9px; display: grid; gap: 2px; min-width: 0; padding: 7px 9px; }
+.workspace-template-card-title { align-items: center; display: flex; gap: 6px; min-width: 0; }
+.workspace-template-card-title strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.workspace-template-card span, .workspace-template-card small { color: var(--ui-muted); font-size: 10px; }
+.workspace-template-card small { opacity: .78; }
+.workspace-template-empty, .workspace-template-more { color: var(--ui-muted); font-size: 10px; }
 .workspace-library-status { display: grid; gap: 6px; grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 0 14px 10px; }
 .workspace-library-card { align-items: center; background: rgba(17, 18, 23, .58); border: 1px solid var(--ui-border); border-radius: 9px; display: grid; gap: 3px 7px; grid-template-columns: minmax(0, 1fr) auto; padding: 7px 9px; }
 .workspace-library-card-heading { align-items: center; display: flex; gap: 7px; min-width: 0; }
@@ -62,5 +73,6 @@ body[data-react-workspace="true"] #workspaceReactRoot { display: block; grid-col
 @media (max-width: 760px) {
   .workspace-session-preview { grid-template-columns: 1fr; }
   .workspace-prompt-preview { grid-template-columns: 1fr; }
+  .workspace-template-preview { grid-template-columns: 1fr; }
   .workspace-library-status { grid-template-columns: 1fr; }
 }

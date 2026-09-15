@@ -166,6 +166,19 @@ function workspacePromptState() {
     }));
 }
 
+function workspaceTemplateState() {
+  return allPromptTemplates()
+    .filter((template) => template && typeof template.id === "string" && template.id)
+    .map((template) => ({
+      id: template.id,
+      name: typeof template.name === "string" ? template.name : "Untitled Template",
+      category: templateCategoryName(template.categoryId),
+      outputMode: template.output?.mode === "json" ? "json" : "text",
+      version: Number.isFinite(template.version) ? Math.max(1, Math.floor(template.version)) : 1,
+      source: template.metadata?.source === "builtin" ? "builtin" : "user"
+    }));
+}
+
 function notifyWorkspaceShell() {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state", {
     detail: {
@@ -175,7 +188,8 @@ function notifyWorkspaceShell() {
       compare: workspaceCompareState(),
       libraries: workspaceLibraryState(),
       sessions: workspaceSessionState(),
-      prompts: workspacePromptState()
+      prompts: workspacePromptState(),
+      templates: workspaceTemplateState()
     }
   }));
 }

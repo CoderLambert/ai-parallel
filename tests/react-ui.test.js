@@ -56,6 +56,7 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   const libraryStatus = read("ui", "workspace", "features", "library-status.tsx");
   const sessionStatus = read("ui", "workspace", "features", "session-status.tsx");
   const promptStatus = read("ui", "workspace", "features", "prompt-status.tsx");
+  const templateStatus = read("ui", "workspace", "features", "template-status.tsx");
   const entrypoint = read("entrypoints", "workspace-shell.tsx");
   const workspaceHtml = read("workspace", "index.html");
   const legacyWorkspace = read("workspace", "workspace.js");
@@ -96,6 +97,11 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(promptStatus, /WorkspacePromptSummary/);
   assert.match(promptStatus, /contentLength/);
   assert.doesNotMatch(promptStatus, /entry\.content|responseBundles|iframe/);
+  assert.match(shell, /TemplateStatus/);
+  assert.match(shell, /templates/);
+  assert.match(templateStatus, /WorkspaceTemplateSummary/);
+  assert.match(templateStatus, /outputMode/);
+  assert.doesNotMatch(templateStatus, /promptTemplate|inputSchema|outputSchema|responseBundles|iframe/);
   assert.match(shell, /sessionBtn/);
   assert.match(shell, /promptLibraryBtn/);
   assert.match(shell, /templateLibraryBtn/);
@@ -117,5 +123,8 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(legacyWorkspace, /function workspacePromptState/);
   assert.match(legacyWorkspace, /contentLength: typeof entry\.content === "string" \? entry\.content\.length : 0/);
   assert.match(legacyWorkspace, /prompts: workspacePromptState\(\)/);
+  assert.match(legacyWorkspace, /function workspaceTemplateState/);
+  assert.match(legacyWorkspace, /outputMode: template\.output\?\.mode === "json" \? "json" : "text"/);
+  assert.match(legacyWorkspace, /templates: workspaceTemplateState\(\)/);
   assert.match(legacyWorkspace, /ai-parallel:workspace-set-selection/);
 });

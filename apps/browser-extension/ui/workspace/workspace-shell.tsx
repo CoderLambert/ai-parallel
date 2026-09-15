@@ -7,6 +7,7 @@ import { CompareStatus, type CompareSummary } from "./features/compare-status";
 import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
 import { PromptStatus, type WorkspacePromptSummary } from "./features/prompt-status";
 import { SessionStatus, type WorkspaceSessionSummary } from "./features/session-status";
+import { TemplateStatus, type WorkspaceTemplateSummary } from "./features/template-status";
 import { WorkspaceActions, type WorkspaceAction } from "./features/workspace-actions";
 
 const providers = globalThis.AIParallelProviderCatalog;
@@ -114,6 +115,26 @@ function readPromptSummaries(value: unknown): WorkspacePromptSummary[] {
   }).slice(0, 50);
 }
 
+function readTemplateSummaries(value: unknown): WorkspaceTemplateSummary[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.id !== "string" || !record.id.trim()) return [];
+    const version = typeof record.version === "number" && Number.isFinite(record.version)
+      ? Math.max(1, Math.floor(record.version))
+      : 1;
+    return [{
+      id: record.id,
+      name: typeof record.name === "string" && record.name.trim() ? record.name : "Untitled Template",
+      category: typeof record.category === "string" && record.category.trim() ? record.category : "未分类",
+      outputMode: record.outputMode === "json" ? "json" as const : "text" as const,
+      version,
+      source: record.source === "builtin" ? "builtin" as const : "user" as const
+    }];
+  }).slice(0, 100);
+}
+
 function emitSelection(providerIds: readonly ProviderId[]) {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-set-selection", {
     detail: { providerIds: [...providerIds] }
@@ -139,6 +160,7 @@ export function WorkspaceShell() {
   const [libraries, setLibraries] = useState<WorkspaceLibrarySummary>(emptyLibrarySummary);
   const [sessions, setSessions] = useState<WorkspaceSessionSummary[]>([]);
   const [prompts, setPrompts] = useState<WorkspacePromptSummary[]>([]);
+  const [templates, setTemplates] = useState<WorkspaceTemplateSummary[]>([]);
 
   useEffect(() => {
     let active = true;
@@ -157,6 +179,7 @@ export function WorkspaceShell() {
         libraries?: unknown;
         sessions?: unknown;
         prompts?: unknown;
+        templates?: unknown;
       }>).detail;
       if (detail?.selectedProviders) setSelected(readProviderSelection(detail.selectedProviders, providers));
       if (layouts.includes(detail?.workspaceLayout as WorkspaceLayout)) setLayout(detail.workspaceLayout as WorkspaceLayout);
@@ -165,6 +188,7 @@ export function WorkspaceShell() {
       if (detail?.libraries) setLibraries(readLibrarySummary(detail.libraries));
       if (detail?.sessions) setSessions(readSessionSummaries(detail.sessions));
       if (detail?.prompts) setPrompts(readPromptSummaries(detail.prompts));
+      if (detail?.templates) setTemplates(readTemplateSummaries(detail.templates));
     };
     window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
     return () => {
@@ -211,6 +235,7 @@ export function WorkspaceShell() {
       <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => triggerLegacyAction("compare")} />
       <SessionStatus sessions={sessions} onOpen={() => triggerLegacyAction("session")} />
       <PromptStatus prompts={prompts} onOpen={() => triggerLegacyAction("prompt")} />
+      <TemplateStatus templates={templates} onOpen={() => triggerLegacyAction("template")} />
       <LibraryStatus summary={libraries} onOpen={triggerLegacyAction} />
     </div>
   );
