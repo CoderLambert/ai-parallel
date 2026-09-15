@@ -11,6 +11,10 @@ AI Parallel Workspace (extension page)
   ├─ Provider Task Runtime
   │    ├─ bounded retry / timeout / cancel
   │    └─ in-memory task state and observation
+  ├─ Agent Execution Controller
+  │    ├─ explicit planner / executor / reviewer scope
+  │    ├─ bounded parallel scheduling
+  │    └─ in-memory result aggregation and failure isolation
   ├─ ChatGPT iframe
   ├─ DeepSeek iframe
   ├─ 智谱 iframe
@@ -75,6 +79,15 @@ Tasks expose `IDLE`, `QUEUED`, `RUNNING`, `SUCCESS`, `FAILED`, `TIMEOUT`, and
 `CANCELLED` states. Retry attempts are bounded by the provider capability contract;
 only explicitly retryable transport or timeout failures are retried. Task history
 and response snapshots are not written to extension storage.
+
+The Agent Execution Controller is a user-triggered, in-memory layer above the
+Provider Task Runtime. It accepts an explicit `parallel` scope containing no
+more than eight planner, executor, or reviewer agents, schedules at most three
+agents concurrently by default, and sends every agent prompt through the
+selected Provider Adapter and Runtime. A failed agent is isolated so remaining
+agents can complete; the aggregate is `SUCCESS`, `PARTIAL`, `FAILED`, or
+`CANCELLED`. It does not create autonomous loops, persist prompts/responses, or
+bypass the provider message boundary.
 
 ## Provider boundaries
 

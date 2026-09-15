@@ -8,6 +8,8 @@ AI Parallel v2 uses a live iframe workspace instead of mirroring model responses
 Workspace extension page
   ├─ Provider Task Runtime
   │    └─ Provider Adapter Contract → shared iframe/tab transport
+  ├─ Agent Execution Controller
+  │    └─ bounded planner / executor / reviewer aggregation
   ├─ ChatGPT iframe
   ├─ DeepSeek iframe
   ├─ 智谱 iframe
@@ -32,6 +34,13 @@ Workspace provider operations run through the shared Provider Task Runtime. It
 tracks each operation in memory, bounds retry attempts, exposes timeout and
 cancellation states, and keeps deterministic provider failures visible. Task
 history and response snapshots are not persisted.
+
+The shared Agent Execution Controller provides an explicit, bounded parallel
+execution model for planner, executor, and reviewer roles. It allows at most
+eight agents per execution and three concurrent provider tasks by default. Each
+agent still runs through the Provider Task Runtime and Adapter Contract; one
+failure is isolated and reported in the aggregate. Prompts and responses remain
+in memory only, with no autonomous loop or background execution.
 
 ## Install from a release
 
