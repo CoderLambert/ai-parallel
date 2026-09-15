@@ -6,6 +6,19 @@ export interface CompareSummary {
   responseCount: number;
   pendingCount: number;
   status: string;
+  responses?: readonly WorkspaceCompareResponse[];
+}
+
+export interface WorkspaceCompareResponse {
+  providerId: string;
+  providerName: string;
+  ok: boolean;
+  pending: boolean;
+  content: string;
+  error: string;
+  timestamp: string;
+  schemaStatus: "" | "valid" | "invalid";
+  canImportTemplate: boolean;
 }
 
 export function CompareStatus({

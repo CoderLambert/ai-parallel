@@ -3,7 +3,8 @@ import type { ProviderDescriptor, ProviderId } from "../../contracts/provider";
 import { Button } from "../components/button";
 import { ProviderStrip, type ProviderReadiness } from "./features/provider-strip";
 import { ProviderReadinessPanel, type ProviderPanelAction } from "./features/provider-readiness-panel";
-import { CompareStatus, type CompareSummary } from "./features/compare-status";
+import { CompareDrawer, type WorkspaceCompareAction } from "./features/compare-drawer";
+import { CompareStatus, type CompareSummary, type WorkspaceCompareResponse } from "./features/compare-status";
 import { HandoffStatus } from "./features/handoff-status";
 import { LibraryStatus, type WorkspaceLibrarySummary } from "./features/library-status";
 import { PromptLibraryDrawer, type WorkspacePromptAction } from "./features/prompt-library-drawer";
@@ -62,8 +63,32 @@ function readCompareSummary(value: unknown): CompareSummary {
     pendingCount: typeof record.pendingCount === "number" && Number.isFinite(record.pendingCount)
       ? Math.max(0, Math.floor(record.pendingCount))
       : 0,
-    status: typeof record.status === "string" ? record.status : ""
+    status: typeof record.status === "string" ? record.status : "",
+    responses: readCompareResponses(record.responses)
   };
+}
+
+function readCompareResponses(value: unknown): WorkspaceCompareResponse[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (typeof record.providerId !== "string" || !record.providerId.trim()) return [];
+    const schemaStatus: WorkspaceCompareResponse["schemaStatus"] = record.schemaStatus === "valid" || record.schemaStatus === "invalid"
+      ? record.schemaStatus
+      : "";
+    return [{
+      providerId: record.providerId,
+      providerName: typeof record.providerName === "string" ? record.providerName : record.providerId,
+      ok: record.ok === true,
+      pending: record.pending === true,
+      content: typeof record.content === "string" ? record.content : "",
+      error: typeof record.error === "string" ? record.error : "",
+      timestamp: typeof record.timestamp === "string" ? record.timestamp : "",
+      schemaStatus,
+      canImportTemplate: record.canImportTemplate === true
+    }];
+  }).slice(0, 20);
 }
 
 function readLibrarySummary(value: unknown): WorkspaceLibrarySummary {
@@ -159,6 +184,12 @@ function emitTemplateAction(action: WorkspaceTemplateAction) {
   }));
 }
 
+function emitCompareAction(action: WorkspaceCompareAction) {
+  window.dispatchEvent(new CustomEvent("ai-parallel:workspace-compare-action", {
+    detail: action
+  }));
+}
+
 function emitSessionAction(action: WorkspaceSessionAction) {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-session-action", {
     detail: action
@@ -185,7 +216,7 @@ export function WorkspaceShell() {
   const [sessions, setSessions] = useState<WorkspaceSessionSummary[]>([]);
   const [prompts, setPrompts] = useState<WorkspacePromptSummary[]>([]);
   const [templates, setTemplates] = useState<WorkspaceTemplateSummary[]>([]);
-  const [activeDrawer, setActiveDrawer] = useState<"prompt" | "template" | "session" | null>(null);
+  const [activeDrawer, setActiveDrawer] = useState<"prompt" | "template" | "session" | "compare" | null>(null);
   const [promptActionStatus, setPromptActionStatus] = useState("");
   const [templateActionStatus, setTemplateActionStatus] = useState("");
   const [sessionActionStatus, setSessionActionStatus] = useState("");
@@ -261,11 +292,12 @@ export function WorkspaceShell() {
   }
 
   function openWorkspaceAction(action: WorkspaceAction) {
-    if (action === "prompt" || action === "template" || action === "session") {
+    if (action === "prompt" || action === "template" || action === "session" || action === "compare") {
       if (action === "prompt") setPromptActionStatus("");
       else if (action === "template") setTemplateActionStatus("");
-      else setSessionActionStatus("");
+      else if (action === "session") setSessionActionStatus("");
       setActiveDrawer(action);
+      if (action === "compare") emitCompareAction({ type: "open" });
       return;
     }
     openLegacyAction(action);
@@ -293,6 +325,13 @@ export function WorkspaceShell() {
     emitSessionAction(action);
   }
 
+  function handleCompareAction(action: WorkspaceCompareAction) {
+    if (action.type === "open") setActiveDrawer("compare");
+    if (action.type === "close") setActiveDrawer(null);
+    if (action.type === "importTemplate") setActiveDrawer("template");
+    emitCompareAction(action);
+  }
+
   return (
     <div className="workspace-react-toolbar">
       <div className="workspace-react-brand">
@@ -315,8 +354,8 @@ export function WorkspaceShell() {
         readiness={readiness}
         onAction={triggerProviderPanelAction}
       />
-      <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => openLegacyAction("compare")} />
-      <HandoffStatus responseCount={compare.responseCount} onOpen={() => openLegacyAction("compare")} />
+      <CompareStatus selectedCount={selected.length} summary={compare} onOpen={() => openWorkspaceAction("compare")} />
+      <HandoffStatus responseCount={compare.responseCount} onOpen={() => openWorkspaceAction("compare")} />
       <SessionStatus sessions={sessions} onOpen={() => openWorkspaceAction("session")} />
       <PromptStatus prompts={prompts} onOpen={() => openWorkspaceAction("prompt")} />
       <TemplateStatus templates={templates} onOpen={() => openWorkspaceAction("template")} />
@@ -342,6 +381,7 @@ export function WorkspaceShell() {
         onClose={() => setActiveDrawer(null)}
         onAction={handleSessionAction}
       />
+      <CompareDrawer open={activeDrawer === "compare"} summary={compare} onAction={handleCompareAction} />
     </div>
   );
 }

@@ -131,8 +131,34 @@ function workspaceCompareState() {
     open: compareDrawer.dataset.open === "true",
     responseCount: responseBundles.size,
     pendingCount: pendingCollections.size,
-    status: compareStatus.textContent || ""
+    status: compareStatus.textContent || "",
+    responses: workspaceCompareResponses()
   };
+}
+
+function workspaceCompareResponses() {
+  if (!responseBundles.size && !pendingCollections.size) return [];
+  return PROVIDERS
+    .filter((provider) => selected.has(provider.id))
+    .map((provider) => {
+      const result = responseBundles.get(provider.id);
+      const rawContent = result?.response?.content || result?.response?.markdown || "";
+      const content = typeof rawContent === "string" ? rawContent : "";
+      const validation = result?.ok && activeTemplate?.output?.mode === "json"
+        ? promptTemplateUtils.validateTemplateResponse(activeTemplate, content)
+        : null;
+      return {
+        providerId: provider.id,
+        providerName: provider.name,
+        ok: result?.ok === true,
+        pending: pendingCollections.has(provider.id),
+        content,
+        error: typeof result?.error === "string" ? result.error : "",
+        timestamp: typeof result?.response?.timestamp === "string" ? result.response.timestamp : "",
+        schemaStatus: validation ? (validation.ok ? "valid" : "invalid") : "",
+        canImportTemplate: result?.ok === true && content.trim().length > 0
+      };
+    });
 }
 
 function workspaceLibraryState() {
@@ -854,17 +880,21 @@ async function importResponseAsTemplate(providerId) {
   const content = result?.response?.content || result?.response?.markdown || "";
   if (!content.trim()) {
     setCompareStatus("当前回答为空，无法导入模板");
-    return;
+    return "当前回答为空，无法导入模板";
   }
   const imported = await importTemplateText(content, "response");
   if (imported) {
-    setCompareStatus(`${providerName(providerId)} 的回答已导入模板库`);
+    const message = `${providerName(providerId)} 的回答已导入模板库`;
+    setCompareStatus(message);
     openTemplateLibraryDrawer();
+    return message;
   }
+  return templateLibraryStatus.textContent || "回答导入模板失败";
 }
 
 async function collectResponseSafely(providerId) {
   pendingCollections.add(providerId);
+  notifyWorkspaceShell();
   try {
     return await collectResponseFromProvider(providerId);
   } catch (error) {
@@ -874,11 +904,12 @@ async function collectResponseSafely(providerId) {
     };
   } finally {
     pendingCollections.delete(providerId);
+    notifyWorkspaceShell();
   }
 }
 
 async function retryResponse(providerId) {
-  if (!selected.has(providerId) || pendingCollections.has(providerId)) return;
+  if (!selected.has(providerId) || pendingCollections.has(providerId)) return "当前模型暂不可重试";
 
   responseBundles.set(providerId, { ok: false, error: "正在重试…" });
   renderResponses();
@@ -892,6 +923,9 @@ async function retryResponse(providerId) {
     ? `${providerName(providerId)} 已重新收集`
     : `${providerName(providerId)} 重试失败，可再次尝试`);
   renderResponses();
+  return result.ok
+    ? `${providerName(providerId)} 已重新收集`
+    : `${providerName(providerId)} 重试失败，可再次尝试`;
 }
 
 async function collectResponses() {
@@ -1615,6 +1649,7 @@ async function copyValue(value) {
 async function copyText(value, successMessage) {
   await copyValue(value);
   setCompareStatus(successMessage);
+  return successMessage;
 }
 
 function downloadMarkdown() {
@@ -1627,7 +1662,9 @@ function downloadMarkdown() {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-  setCompareStatus("Markdown 已下载");
+  const message = "Markdown 已下载";
+  setCompareStatus(message);
+  return message;
 }
 
 function buildHandoffPrompt() {
@@ -1645,12 +1682,14 @@ function hasSuccessfulResponseSnapshot() {
 
 async function sendToAgent() {
   if (!selected.size) {
-    setCompareStatus("至少选择一个模型");
-    return;
+    const message = "至少选择一个模型";
+    setCompareStatus(message);
+    return message;
   }
   if (!hasSuccessfulResponseSnapshot()) {
-    setCompareStatus("请先点击 Compare 收集至少一个回答");
-    return;
+    const message = "请先点击 Compare 收集至少一个回答";
+    setCompareStatus(message);
+    return message;
   }
 
   const target = handoffTarget.value;
@@ -1667,9 +1706,11 @@ async function sendToAgent() {
   setCompareStatus(`正在发送上下文到 ${providerName(target)}…`);
   try {
     const result = await sendPromptToProvider(target, buildHandoffPrompt());
-    setCompareStatus(result.ok
+    const message = result.ok
       ? `上下文已发送到 ${providerName(target)}`
-      : result.error || "Agent handoff 失败");
+      : result.error || "Agent handoff 失败";
+    setCompareStatus(message);
+    return message;
   } finally {
     sendAgentBtn.disabled = false;
   }
@@ -1784,6 +1825,46 @@ window.addEventListener("ai-parallel:workspace-prompt-action", (event) => {
     }));
   }).catch((error) => {
     window.dispatchEvent(new CustomEvent("ai-parallel:workspace-prompt-action-result", {
+      detail: { ok: false, error: error instanceof Error ? error.message : String(error) }
+    }));
+  });
+});
+window.addEventListener("ai-parallel:workspace-compare-action", (event) => {
+  const detail = event instanceof CustomEvent ? event.detail : null;
+  if (!detail || typeof detail !== "object" || typeof detail.type !== "string") return;
+
+  let operation;
+  if (detail.type === "open") {
+    openCompareDrawer();
+    operation = "Compare 已打开";
+  } else if (detail.type === "close") {
+    closeCompareDrawer();
+    operation = "Compare 已关闭";
+  } else if (detail.type === "retry" || detail.type === "importTemplate") {
+    if (typeof detail.providerId !== "string" || !providerById(detail.providerId)) return;
+    operation = detail.type === "retry"
+      ? retryResponse(detail.providerId)
+      : importResponseAsTemplate(detail.providerId);
+  } else if (detail.type === "copyMarkdown") {
+    operation = copyText(buildComparisonMarkdown(), "Markdown 已复制");
+  } else if (detail.type === "copyJson") {
+    operation = copyText(buildComparisonJson(), "JSON 已复制");
+  } else if (detail.type === "downloadMarkdown") {
+    operation = downloadMarkdown();
+  } else if (detail.type === "sendAgent") {
+    if (typeof detail.target !== "string" || !["chatgpt", "claude", "gemini", "grok"].includes(detail.target)) return;
+    handoffTarget.value = detail.target;
+    operation = sendToAgent();
+  } else {
+    return;
+  }
+
+  Promise.resolve(operation).then((message) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-compare-action-result", {
+      detail: { ok: true, message: typeof message === "string" ? message : "Compare 操作已完成" }
+    }));
+  }).catch((error) => {
+    window.dispatchEvent(new CustomEvent("ai-parallel:workspace-compare-action-result", {
       detail: { ok: false, error: error instanceof Error ? error.message : String(error) }
     }));
   });
