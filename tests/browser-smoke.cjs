@@ -4,7 +4,13 @@ const os = require("node:os");
 const path = require("node:path");
 const { chromium } = require("playwright");
 
-const extensionRoot = path.join(__dirname, "..", "apps", "browser-extension");
+const extensionRoot = process.env.AI_PARALLEL_EXTENSION_ROOT
+  ? path.resolve(process.env.AI_PARALLEL_EXTENSION_ROOT)
+  : path.join(__dirname, "..", "apps", "browser-extension");
+const headless = process.env.AI_PARALLEL_BROWSER_HEADLESS === "true";
+const executablePath = process.env.AI_PARALLEL_BROWSER_EXECUTABLE_PATH
+  ? path.resolve(process.env.AI_PARALLEL_BROWSER_EXECUTABLE_PATH)
+  : undefined;
 const diagnosticsDir = path.join(process.cwd(), "test-results", "browser-smoke");
 
 async function run() {
@@ -14,13 +20,15 @@ async function run() {
   let page;
 
   try {
-    context = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
+    const browserOptions = {
+      headless,
       args: [
         `--disable-extensions-except=${extensionRoot}`,
         `--load-extension=${extensionRoot}`
       ]
-    });
+    };
+    if (executablePath) browserOptions.executablePath = executablePath;
+    context = await chromium.launchPersistentContext(userDataDir, browserOptions);
     await context.tracing.start({ screenshots: true, snapshots: true });
 
     // Keep the smoke test deterministic and credential-free. Provider pages are

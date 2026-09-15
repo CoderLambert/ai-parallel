@@ -51,6 +51,38 @@ directory. Keep that directory in place after installation.
 
 When loading from a source checkout, select `apps/browser-extension` directly.
 
+## Build foundation
+
+The repository is migrating from a source-directory archive to a WXT/Vite
+build in phases. The first foundation phase keeps the existing runtime files
+unchanged while WXT generates and validates a Manifest V3 Chrome artifact:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm typecheck
+pnpm build:chrome
+pnpm package:extension
+```
+
+The generated extension is written to `dist/chrome-mv3`. The current
+`wxt.config.ts` reads the existing `manifest.json` as a compatibility source,
+stages the legacy runtime assets, and verifies permissions, host permissions,
+CSP, DNR, content-script order, and referenced files before packaging. The
+temporary `entrypoints/foundation.ts` is only a WXT build anchor; the actual
+background and content-script entrypoints will be migrated under the Runtime
+issue after the shared contracts are stable.
+
+For a local browser smoke against the built artifact, use:
+
+```bash
+AI_PARALLEL_EXTENSION_ROOT=dist/chrome-mv3 \
+AI_PARALLEL_BROWSER_HEADLESS=true \
+node tests/browser-smoke.cjs
+```
+
+The smoke remains credential-free. Provider authentication and live Provider
+checks stay in the protected authenticated smoke workflow.
+
 Grok authentication and chat run in a top-level browser tab because `accounts.x.ai`
 does not permit iframe login and Grok's real-time WebSocket is not iframe-safe. AI
 Parallel reuses that tab for prompt dispatch, response collection, and handoff.

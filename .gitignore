@@ -1,5 +1,8 @@
 node_modules/
 .pnpm-store/
+.wxt/
+.wxt-legacy/
+.output/
 dist/
 build/
 coverage/
