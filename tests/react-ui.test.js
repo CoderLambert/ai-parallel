@@ -50,6 +50,7 @@ test("React template library covers schema validation, import/export, editing, a
 
 test("Workspace React shell owns the generated toolbar and delegates legacy runtime actions", () => {
   const shell = read("ui", "workspace", "workspace-shell.tsx");
+  const providerStrip = read("ui", "workspace", "features", "provider-strip.tsx");
   const entrypoint = read("entrypoints", "workspace-shell.tsx");
   const workspaceHtml = read("workspace", "index.html");
   const legacyWorkspace = read("workspace", "workspace.js");
@@ -57,6 +58,11 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(shell, /ProviderStrip/);
   assert.match(shell, /WorkspaceActions/);
   assert.match(shell, /ai-parallel:workspace-set-selection/);
+  assert.match(shell, /providerStates/);
+  assert.doesNotMatch(shell, /responseBundles|contentWindow|iframe/);
+  assert.match(providerStrip, /ProviderReadiness/);
+  assert.match(providerStrip, /workspace-provider-readiness/);
+  assert.match(providerStrip, /is-ready/);
   assert.match(shell, /sessionBtn/);
   assert.match(shell, /promptLibraryBtn/);
   assert.match(shell, /templateLibraryBtn/);
@@ -66,5 +72,7 @@ test("Workspace React shell owns the generated toolbar and delegates legacy runt
   assert.match(entrypoint, /workspaceReactRoot/);
   assert.match(workspaceHtml, /id="workspaceReactRoot"/);
   assert.match(legacyWorkspace, /ai-parallel:workspace-state/);
+  assert.match(legacyWorkspace, /function workspaceProviderStates/);
+  assert.match(legacyWorkspace, /providerStates: workspaceProviderStates\(\)/);
   assert.match(legacyWorkspace, /ai-parallel:workspace-set-selection/);
 });

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ProviderDescriptor, ProviderId } from "../../contracts/provider";
 import { Button } from "../components/button";
-import { ProviderStrip } from "./features/provider-strip";
+import { ProviderStrip, type ProviderReadiness } from "./features/provider-strip";
 import { WorkspaceActions, type WorkspaceAction } from "./features/workspace-actions";
 
 const providers = globalThis.AIParallelProviderCatalog;
@@ -14,6 +14,7 @@ const legacyActionIds: Record<WorkspaceAction, string> = {
 };
 const layouts = ["auto", "1", "2", "3"] as const;
 type WorkspaceLayout = (typeof layouts)[number];
+type ProviderReadinessMap = Partial<Record<ProviderId, ProviderReadiness>>;
 
 function isProviderId(value: unknown): value is ProviderId {
   return typeof value === "string" && providers.some((provider) => provider.id === value);
@@ -22,6 +23,20 @@ function isProviderId(value: unknown): value is ProviderId {
 function readProviderSelection(value: unknown, fallback: readonly ProviderDescriptor[]) {
   if (!Array.isArray(value)) return fallback.filter((provider) => provider.default).map((provider) => provider.id);
   return value.filter(isProviderId);
+}
+
+function readProviderReadiness(value: unknown): ProviderReadinessMap {
+  if (!Array.isArray(value)) return {};
+  return Object.fromEntries(value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as Record<string, unknown>;
+    if (!isProviderId(record.providerId)) return [];
+    return [[record.providerId, {
+      loaded: record.loaded === true,
+      ready: record.ready === true,
+      status: typeof record.status === "string" ? record.status : "未加载"
+    }]];
+  })) as ProviderReadinessMap;
 }
 
 function emitSelection(providerIds: readonly ProviderId[]) {
@@ -37,6 +52,7 @@ function triggerLegacyAction(action: WorkspaceAction) {
 export function WorkspaceShell() {
   const [selected, setSelected] = useState<ProviderId[]>([]);
   const [layout, setLayout] = useState<WorkspaceLayout>("auto");
+  const [readiness, setReadiness] = useState<ProviderReadinessMap>({});
 
   useEffect(() => {
     let active = true;
@@ -47,9 +63,14 @@ export function WorkspaceShell() {
     }).catch(() => {});
 
     const handleWorkspaceState = (event: Event) => {
-      const detail = (event as CustomEvent<{ selectedProviders?: unknown; workspaceLayout?: unknown }>).detail;
+      const detail = (event as CustomEvent<{
+        selectedProviders?: unknown;
+        workspaceLayout?: unknown;
+        providerStates?: unknown;
+      }>).detail;
       if (detail?.selectedProviders) setSelected(readProviderSelection(detail.selectedProviders, providers));
       if (layouts.includes(detail?.workspaceLayout as WorkspaceLayout)) setLayout(detail.workspaceLayout as WorkspaceLayout);
+      if (detail?.providerStates) setReadiness(readProviderReadiness(detail.providerStates));
     };
     window.addEventListener("ai-parallel:workspace-state", handleWorkspaceState);
     return () => {
@@ -78,7 +99,7 @@ export function WorkspaceShell() {
         <span>AI Parallel</span>
         <span className="workspace-react-version">React Shell</span>
       </div>
-      <ProviderStrip providers={providers} selected={selected} onToggle={toggleProvider} />
+      <ProviderStrip providers={providers} selected={selected} readiness={readiness} onToggle={toggleProvider} />
       <WorkspaceActions onAction={triggerLegacyAction} />
       <div className="workspace-layout-switch" aria-label="布局">
         {layouts.map((value) => (

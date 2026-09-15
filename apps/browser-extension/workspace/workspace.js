@@ -114,9 +114,25 @@ function updateMeta() {
   sendBtn.disabled = selected.size === 0 || !promptInput.value.trim();
 }
 
+function workspaceProviderStates() {
+  return PROVIDERS.map((provider) => {
+    const panel = panels.get(provider.id);
+    return {
+      providerId: provider.id,
+      loaded: panel?.dataset.loaded === "true",
+      ready: panel?.dataset.ready === "true",
+      status: panel?.querySelector(".provider-state")?.textContent || (selected.has(provider.id) ? "未加载" : "未选择")
+    };
+  });
+}
+
 function notifyWorkspaceShell() {
   window.dispatchEvent(new CustomEvent("ai-parallel:workspace-state", {
-    detail: { selectedProviders: [...selected], workspaceLayout: currentLayout }
+    detail: {
+      selectedProviders: [...selected],
+      workspaceLayout: currentLayout,
+      providerStates: workspaceProviderStates()
+    }
   }));
 }
 
@@ -125,6 +141,7 @@ function setPanelState(providerId, state, { ready } = {}) {
   if (!panel) return;
   if (typeof ready === "boolean") panel.dataset.ready = String(ready);
   panel.querySelector(".provider-state").textContent = state;
+  notifyWorkspaceShell();
 }
 
 providerTaskRuntime.subscribe((task) => {
@@ -224,6 +241,7 @@ function ensurePanel(provider) {
       panel.dataset.loaded = "true";
       panel.dataset.ready = "false";
       panel.querySelector(".provider-state").textContent = "等待桥接";
+      notifyWorkspaceShell();
       for (const delay of [80, 400, 1200, 2500]) {
         setTimeout(() => pingFrame(provider.id), delay);
       }
@@ -233,6 +251,7 @@ function ensurePanel(provider) {
       panel.dataset.loaded = "false";
       panel.dataset.ready = "false";
       panel.querySelector(".provider-state").textContent = "重新加载";
+      notifyWorkspaceShell();
       iframe.src = provider.url;
     });
   }
@@ -286,6 +305,7 @@ function renderPanels() {
     fragment.append(ensurePanel(provider));
   }
   panelGrid.replaceChildren(fragment);
+  notifyWorkspaceShell();
 }
 
 function cancelPendingRequests(providerId, error) {
