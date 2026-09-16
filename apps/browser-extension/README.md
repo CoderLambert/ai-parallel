@@ -86,9 +86,11 @@ the remaining Workspace features have been migrated and browser-validated.
 For a local browser smoke against the built artifact, use:
 
 ```bash
+pnpm build:chrome
+pnpm exec playwright install chromium
 AI_PARALLEL_EXTENSION_ROOT=dist/chrome-mv3 \
 AI_PARALLEL_BROWSER_HEADLESS=true \
-node tests/browser-smoke.cjs
+pnpm e2e:browser
 ```
 
 在 Android/PRoot 或无可用 GPU 进程的环境中，先安装 Chromium 的系统

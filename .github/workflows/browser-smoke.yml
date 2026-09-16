@@ -31,25 +31,27 @@ jobs:
       - name: Build Chrome artifact
         run: pnpm build:chrome
 
-      - name: Install Playwright
-        run: npm install --no-save --no-package-lock playwright@1.55.0
-
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
-      - name: Check smoke script syntax
+      - name: Check workspace smoke syntax
         run: node --check tests/browser-smoke.cjs
+
+      - name: Check extension pages smoke syntax
+        run: node --check tests/extension-pages-smoke.cjs
 
       - name: Run extension smoke
         env:
           AI_PARALLEL_EXTENSION_ROOT: dist/chrome-mv3
           AI_PARALLEL_BROWSER_HEADLESS: "true"
-        run: node tests/browser-smoke.cjs
+        run: pnpm e2e:browser
 
       - name: Upload browser diagnostics
         if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: browser-smoke-diagnostics
-          path: test-results/browser-smoke
+          path: |
+            test-results/browser-smoke
+            test-results/extension-pages-smoke
           if-no-files-found: ignore

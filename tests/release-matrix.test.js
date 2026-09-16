@@ -46,11 +46,16 @@ test("release workflow builds only credential-free artifacts for the browser mat
 });
 
 test("browser smoke is an explicit final check against the generated Chrome artifact", () => {
+  const packageJson = JSON.parse(read("package.json"));
   const workflow = read(".github", "workflows", "browser-smoke.yml");
+  assert.equal(packageJson.scripts["e2e:browser"], "node tests/browser-smoke.cjs && node tests/extension-pages-smoke.cjs");
+  assert.equal(packageJson.devDependencies.playwright, "1.55.0");
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /^\s+(push|pull_request):/m);
   assert.match(workflow, /pnpm install --frozen-lockfile/);
   assert.match(workflow, /pnpm build:chrome/);
+  assert.match(workflow, /pnpm exec playwright install --with-deps chromium/);
   assert.match(workflow, /AI_PARALLEL_EXTENSION_ROOT: dist\/chrome-mv3/);
   assert.match(workflow, /AI_PARALLEL_BROWSER_HEADLESS: "true"/);
+  assert.match(workflow, /pnpm e2e:browser/);
 });

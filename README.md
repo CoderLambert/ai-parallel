@@ -129,6 +129,14 @@ npm run check
 npm test
 ```
 
+运行 credential-free 浏览器 E2E（先构建 Chrome 产物，并安装一次 Chromium）：
+
+```bash
+pnpm build:chrome
+pnpm exec playwright install chromium
+AI_PARALLEL_BROWSER_HEADLESS=true pnpm e2e:browser
+```
+
 需要真实 Provider 登录态时，使用独立的手动、受保护 authenticated smoke
 流程；默认 Browser Smoke 仍不读取凭据。配置和保留边界见
 [Authenticated Provider Smoke](docs/testing/AUTHENTICATED-PROVIDER-SMOKE.md)。
