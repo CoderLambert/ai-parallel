@@ -8,6 +8,7 @@
     }
   }
   const MESSAGE_CONTEXT = "ai-parallel-workspace";
+  const contractRuntime = globalThis.AIParallelContractRuntime;
   const adapters = globalThis.AIParallelProviderAdapters || {};
   const providerId = Object.entries(adapters)
     .find(([, adapter]) => adapter.hosts.includes(location.hostname))?.[0];
@@ -16,6 +17,9 @@
   const adapter = adapters[providerId];
 
   async function executeCommand(message) {
+    if (!contractRuntime?.isProviderCommand(message)) {
+      return contractRuntime?.invalidMessage("Invalid provider command") || { ok: false, error: "Invalid provider command" };
+    }
     const messageType = message.type;
     const requestId = String(message.requestId || "");
     if (!requestId) return { ok: false, error: "Missing request ID" };
@@ -63,6 +67,10 @@
   if (isTopLevel) {
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message?.type !== "AI_PARALLEL_TAB_COMMAND" || message.providerId !== providerId) return false;
+      if (!contractRuntime?.isProviderId(message.providerId) || !contractRuntime.isProviderCommand(message.command)) {
+        sendResponse(contractRuntime?.invalidMessage("Invalid provider command") || { ok: false, error: "Invalid provider command" });
+        return true;
+      }
       executeCommand(message.command || {}).then(sendResponse);
       return true;
     });
@@ -84,8 +92,7 @@
 
   window.addEventListener("message", (event) => {
     if (event.source !== window.parent || event.origin !== PARENT_ORIGIN) return;
-    if (!event.data || event.data.context !== MESSAGE_CONTEXT) return;
-    if (event.data.providerId !== providerId) return;
+    if (!contractRuntime?.isFrameCommandMessage(event.data, providerId)) return;
 
     if (event.data.type === "AI_PARALLEL_PING") {
       announceReady();

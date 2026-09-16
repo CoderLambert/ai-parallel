@@ -5,19 +5,22 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>AI Parallel</title>
   <link rel="stylesheet" href="workspace.css" />
+  <link rel="stylesheet" href="../workspace-shell.css" />
 </head>
 <body>
   <div class="app">
     <header class="toolbar">
-      <div class="brand">
+      <div id="workspaceReactRoot"></div>
+      <div class="brand workspace-legacy-toolbar">
         <span class="brand-mark">AP</span>
         <span>AI Parallel</span>
         <span class="version">Live Web</span>
       </div>
-      <div class="toolbar-center" id="providerBar"></div>
-      <div class="toolbar-actions">
+      <div class="toolbar-center workspace-legacy-toolbar" id="providerBar"></div>
+      <div class="toolbar-actions workspace-legacy-toolbar">
         <button id="sessionBtn" type="button" class="compare-trigger">Sessions</button>
         <button id="promptLibraryBtn" type="button" class="compare-trigger">Prompts</button>
+        <button id="templateLibraryBtn" type="button" class="compare-trigger">Templates</button>
         <button id="compareBtn" type="button" class="compare-trigger">Compare</button>
         <div class="layout-switch" aria-label="布局">
           <button type="button" data-layout="auto" class="active">Auto</button>
@@ -89,6 +92,49 @@
     <div id="promptList" class="prompt-list"></div>
   </aside>
 
+  <aside id="templateLibraryDrawer" class="prompt-library-drawer template-library-drawer" aria-hidden="true">
+    <header class="drawer-header">
+      <div>
+        <div class="drawer-title">Prompt Templates</div>
+        <div id="templateLibraryStatus" class="drawer-status">模板、输入 Schema 和输出 Schema 均保存在当前浏览器</div>
+      </div>
+      <button id="closeTemplateLibraryBtn" type="button" class="drawer-close" title="关闭">×</button>
+    </header>
+    <div class="template-library-toolbar">
+      <select id="templateCategorySelect" aria-label="模板分类"></select>
+      <input id="templateSearchInput" type="search" maxlength="80" placeholder="搜索模板、描述或标签" />
+      <div class="template-library-actions">
+        <button id="importTemplateBtn" type="button" class="drawer-btn">导入 JSON</button>
+        <button id="copyTemplateSchemaBtn" type="button" class="drawer-btn">复制生成规范</button>
+        <button id="exportTemplatesBtn" type="button" class="drawer-btn">导出全部</button>
+        <input id="templateImportInput" type="file" accept="application/json,.json" hidden />
+      </div>
+    </div>
+    <div id="templateList" class="prompt-list"></div>
+  </aside>
+
+  <dialog id="templateFormDialog" class="template-form-dialog">
+    <form id="templateForm" method="dialog">
+      <header class="drawer-header">
+        <div>
+          <div id="templateFormTitle" class="drawer-title">使用模板</div>
+          <div id="templateFormDescription" class="drawer-status"></div>
+        </div>
+        <button id="closeTemplateFormBtn" type="button" class="drawer-close" title="关闭">×</button>
+      </header>
+      <div id="templateFormFields" class="template-form-fields"></div>
+      <div id="templateFormError" class="template-form-error" hidden></div>
+      <details class="template-preview-details">
+        <summary>预览最终 Prompt</summary>
+        <pre id="templatePromptPreview" class="template-prompt-preview"></pre>
+      </details>
+      <footer class="template-form-actions">
+        <button id="insertTemplateBtn" type="button" class="drawer-btn">填入编辑器</button>
+        <button id="runTemplateBtn" type="button" class="drawer-btn drawer-btn-primary">填入并发送</button>
+      </footer>
+    </form>
+  </dialog>
+
   <aside id="sessionDrawer" class="prompt-library-drawer session-drawer" aria-hidden="true">
     <header class="drawer-header">
       <div>
@@ -132,9 +178,13 @@
   </template>
 
   <script src="../shared/provider-catalog.js"></script>
+  <script src="../shared/contract-runtime.js"></script>
+  <script src="../shared/storage-contract.js"></script>
   <script src="../shared/provider-adapter-contract.js"></script>
   <script src="../shared/provider-task-runtime.js"></script>
   <script src="../shared/agent-execution-controller.js"></script>
+  <script src="../shared/prompt-template-utils.js"></script>
+  <script src="../shared/prompt-template-catalog.js"></script>
   <script src="context-utils.js"></script>
   <script src="workspace.js"></script>
 </body>

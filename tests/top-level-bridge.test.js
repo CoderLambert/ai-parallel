@@ -29,6 +29,7 @@ test("Grok top-level page exposes the provider command bridge", async () => {
   vm.createContext(context);
 
   for (const file of [
+    "shared/contract-runtime.js",
     "content/providers/core.js",
     "content/providers/grok.js",
     "content/frame-bridge.js"

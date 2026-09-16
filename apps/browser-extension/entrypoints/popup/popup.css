@@ -1,0 +1,51 @@
+body {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(79, 70, 229, .14), transparent 34%),
+    var(--ui-background);
+  color: var(--ui-text);
+  margin: 0;
+  min-height: 620px;
+  width: 560px;
+}
+
+.popup-app { padding: 20px; }
+.popup-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.popup-eyebrow { color: var(--ui-muted); font-size: 10px; font-weight: 750; letter-spacing: .16em; margin-bottom: 5px; }
+h1 { font-size: 22px; letter-spacing: -.03em; margin: 0; }
+.popup-header p { color: var(--ui-muted); font-size: 12px; line-height: 1.45; margin: 7px 0 0; max-width: 370px; }
+.popup-section-head { align-items: center; display: flex; font-size: 12px; font-weight: 650; justify-content: space-between; }
+.provider-grid { display: grid; gap: 8px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.provider-option {
+  align-items: center;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  color: #d4d4d8;
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  min-height: 42px;
+  overflow: hidden;
+  padding: 9px 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.provider-option:hover { border-color: var(--ui-border-strong); }
+.provider-option.is-selected { background: rgba(79, 70, 229, .14); border-color: #615fff; color: #fff; }
+.provider-mark { align-items: center; border: 1px solid #454751; border-radius: 5px; display: inline-flex; flex: 0 0 auto; height: 17px; justify-content: center; width: 17px; }
+.provider-option.is-selected .provider-mark { background: var(--ui-accent); border-color: var(--ui-accent); }
+.popup-composer { margin: 12px 0; }
+.popup-composer .ui-textarea { min-height: 180px; max-height: 360px; }
+.composer-meta { color: #71717a; display: flex; font-size: 11px; justify-content: space-between; margin: 7px 2px 0; }
+.send-button { justify-content: center; width: 100%; }
+.send-button .ui-badge { background: #d4d4d8; border: 0; color: #111217; }
+.templates-button { justify-content: center; margin-top: 10px; width: 100%; }
+.popup-error { background: rgba(127, 29, 29, .18); border: 1px solid #7f1d1d; border-radius: 9px; color: #fecaca; font-size: 12px; margin: -2px 0 10px; padding: 9px 11px; }
+footer { color: #5f616a; font-size: 10px; margin-top: 11px; text-align: center; }

@@ -4,8 +4,35 @@
   "version": "2.1.4",
   "description": "Monorepo for parallel AI workflows across browser, web and desktop clients.",
   "scripts": {
-    "check": "node --check apps/browser-extension/shared/provider-catalog.js && node --check apps/browser-extension/shared/provider-adapter-contract.js && node --check apps/browser-extension/shared/provider-task-runtime.js && node --check apps/browser-extension/shared/agent-execution-controller.js && node --check apps/browser-extension/service-worker.js && node --check apps/browser-extension/popup.js && node --check apps/browser-extension/content/providers/core.js && node --check apps/browser-extension/content/providers/chatgpt.js && node --check apps/browser-extension/content/providers/deepseek.js && node --check apps/browser-extension/content/providers/qwen.js && node --check apps/browser-extension/content/providers/kimi.js && node --check apps/browser-extension/content/providers/zhipu.js && node --check apps/browser-extension/content/providers/claude.js && node --check apps/browser-extension/content/providers/gemini.js && node --check apps/browser-extension/content/providers/grok.js && node --check apps/browser-extension/content/frame-bridge.js && node --check apps/browser-extension/workspace/context-utils.js && node --check apps/browser-extension/workspace/workspace.js && node --check tests/authenticated-browser-smoke.cjs",
+    "prepare": "wxt prepare",
+    "check": "node --check apps/browser-extension/shared/provider-catalog.js && node --check apps/browser-extension/shared/contract-runtime.js && node --check apps/browser-extension/shared/storage-contract.js && node --check apps/browser-extension/shared/provider-adapter-contract.js && node --check apps/browser-extension/shared/provider-task-runtime.js && node --check apps/browser-extension/shared/agent-execution-controller.js && node --check apps/browser-extension/shared/prompt-template-utils.js && node --check apps/browser-extension/shared/prompt-template-catalog.js && node --check apps/browser-extension/service-worker-loader.js && node --check apps/browser-extension/service-worker.js && node --check apps/browser-extension/popup.js && node --check apps/browser-extension/content/providers/core.js && node --check apps/browser-extension/content/providers/chatgpt.js && node --check apps/browser-extension/content/providers/deepseek.js && node --check apps/browser-extension/content/providers/qwen.js && node --check apps/browser-extension/content/providers/kimi.js && node --check apps/browser-extension/content/providers/zhipu.js && node --check apps/browser-extension/content/providers/claude.js && node --check apps/browser-extension/content/providers/gemini.js && node --check apps/browser-extension/content/providers/grok.js && node --check apps/browser-extension/content/frame-bridge.js && node --check apps/browser-extension/workspace/context-utils.js && node --check apps/browser-extension/workspace/workspace.js && node --check scripts/verify-built-extension.mjs && node --check scripts/verify-build-matrix.mjs && node --check tests/browser-smoke-utils.cjs && node --check tests/browser-smoke.cjs && node --check tests/extension-pages-smoke.cjs && node --check tests/authenticated-browser-smoke.cjs",
     "test": "node --test tests/*.test.js",
-    "package:extension": "bash scripts/package-extension.sh"
+    "e2e:browser": "node tests/browser-smoke.cjs && node tests/extension-pages-smoke.cjs",
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "prebuild:chrome": "node scripts/stage-legacy-extension.mjs",
+    "build:chrome": "wxt build -b chrome --mv3 && node scripts/verify-built-extension.mjs dist/chrome-mv3 chrome",
+    "prebuild:edge": "node scripts/stage-legacy-extension.mjs",
+    "build:edge": "wxt build -b edge --mv3 && node scripts/verify-built-extension.mjs dist/edge-mv3 edge",
+    "prebuild:firefox": "node scripts/stage-legacy-extension.mjs",
+    "build:firefox": "wxt build -b firefox --mv3 && node scripts/verify-built-extension.mjs dist/firefox-mv3 firefox",
+    "build:matrix": "pnpm build:chrome && pnpm build:edge && pnpm build:firefox",
+    "verify:matrix": "node scripts/verify-build-matrix.mjs",
+    "prepackage:extension": "pnpm build:chrome",
+    "package:extension": "bash scripts/package-extension.sh",
+    "package:extension:edge": "pnpm build:edge && EXTENSION_BUILD_DIR=dist/edge-mv3 EXTENSION_TARGET=edge bash scripts/package-extension.sh",
+    "package:extension:firefox": "pnpm build:firefox && EXTENSION_BUILD_DIR=dist/firefox-mv3 EXTENSION_TARGET=firefox bash scripts/package-extension.sh",
+    "package:extension:matrix": "pnpm package:extension && pnpm package:extension:edge && pnpm package:extension:firefox"
+  },
+  "devDependencies": {
+    "@types/node": "26.5.1",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "playwright": "1.55.0",
+    "typescript": "5.9.3",
+    "wxt": "0.21.4"
+  },
+  "dependencies": {
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
   }
 }
