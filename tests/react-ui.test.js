@@ -21,6 +21,15 @@ test("React extension pages use local module and style assets under the extensio
   assert.match(templateHtml, /id="root"/);
 });
 
+test("React template library initializes utilities before the dependent catalog", () => {
+  const source = read("ui", "template-library", "main.tsx");
+  const utilsImport = source.indexOf('import "../../shared/prompt-template-utils.js";');
+  const catalogImport = source.indexOf('import "../../shared/prompt-template-catalog.js";');
+
+  assert.ok(utilsImport >= 0);
+  assert.ok(catalogImport > utilsImport);
+});
+
 test("Popup React slice preserves provider, storage, message, keyboard, and template entry behavior", () => {
   const source = read("entrypoints", "popup", "main.tsx");
   assert.match(source, /AIParallelProviderCatalog/);
